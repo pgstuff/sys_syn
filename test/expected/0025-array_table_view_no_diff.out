@@ -1,0 +1,89 @@
+BEGIN;
+CREATE EXTENSION tinyint
+    SCHEMA public;
+CREATE EXTENSION sys_syn;
+CREATE SCHEMA user_data
+    AUTHORIZATION postgres;
+CREATE TABLE user_data.test_table (
+        test_table_key integer NOT NULL,
+        test_table_updated timestamp with time zone,
+        test_table_text text,
+        test_table_no_diff text,
+        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key, test_table_updated));
+INSERT INTO sys_syn.in_groups_def VALUES ('in');
+SELECT sys_syn.in_table_add (
+                'user_data',
+                'test_table',
+                'in',
+                NULL,
+                ARRAY[
+                       $COL$("test_table_key","integer",Key,"in_source.test_table_key",,,,)$COL$,
+                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,)$COL$,
+                       $COL$("test_table_no_diff","text",NoDiff,"in_source.test_table_no_diff",,,,)$COL$,
+                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
+                ]::sys_syn.create_in_column[],
+                'user_data.test_table',
+                NULL
+        );
+ in_table_add 
+--------------
+ 
+(1 row)
+
+INSERT INTO user_data.test_table(
+        test_table_key, test_table_updated,             test_table_text,        test_table_no_diff)
+VALUES  (1,              '2009-01-02 03:04:05-00',       'test_data v1',        'x'),
+        (1,              '2010-01-02 03:04:05-00',       'test_data v2',        'x');
+INSERT INTO sys_syn.out_groups_def VALUES ('out');
+SELECT sys_syn.out_table_add('user_data', 'test_table', 'out', data_view => TRUE);
+ out_table_add 
+---------------
+ 
+(1 row)
+
+ALTER TABLE user_data.test_table_out_queue
+  ADD FOREIGN KEY (trans_id_in, key) REFERENCES user_data.test_table_in (trans_id_in, key) ON UPDATE RESTRICT ON DELETE RESTRICT;
+SELECT user_data.test_table_pull(FALSE);
+ test_table_pull 
+-----------------
+ t
+(1 row)
+
+SELECT user_data.test_table_out_move();
+ test_table_out_move 
+---------------------
+ t
+(1 row)
+
+SELECT * FROM user_data.test_table_out_queue_data;
+ sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key |      test_table_updated      | test_table_text | test_table_no_diff 
+-------------+---------------------+--------------------+---------------------+------------------+------------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+------------------------------+-----------------+--------------------
+ (1)         |                   2 | Add                | Unread              |                  |                        |                      |                             |                            |                           |                        |                          |                      |                        |              1 | Thu Jan 01 19:04:05 2009 PST | test_data v1    | x
+ (1)         |                   2 | Add                | Unread              |                  |                        |                      |                             |                            |                           |                        |                          |                      |                        |              1 | Fri Jan 01 19:04:05 2010 PST | test_data v2    | x
+(2 rows)
+
+SELECT user_data.test_table_vacuum();
+ test_table_vacuum 
+-------------------
+ 
+(1 row)
+
+UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 1;
+SELECT user_data.test_table_out_processed();
+ test_table_out_processed 
+--------------------------
+ t
+(1 row)
+
+SELECT * FROM user_data.test_table_out_queue_data;
+ sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key | test_table_updated | test_table_text | test_table_no_diff 
+-------------+---------------------+--------------------+---------------------+------------------+------------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+--------------------+-----------------+--------------------
+(0 rows)
+
+SELECT user_data.test_table_vacuum();
+ test_table_vacuum 
+-------------------
+ 
+(1 row)
+
+ROLLBACK;

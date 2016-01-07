@@ -1,0 +1,78 @@
+BEGIN;
+CREATE EXTENSION tinyint
+    SCHEMA public;
+CREATE EXTENSION sys_syn;
+CREATE TABLE public.test_data (
+        test_data_key integer NOT NULL,
+        test_data_text text,
+        CONSTRAINT test_data_pkey PRIMARY KEY (test_data_key));
+INSERT INTO sys_syn.in_groups_def VALUES ('in');
+SELECT sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
+                                          in_table_add_sql                                           
+-----------------------------------------------------------------------------------------------------
+ SELECT sys_syn.in_table_add (                                                                      +
+                 schema          => 'public',                                                       +
+                 in_table_id     => 'test_data',                                                    +
+                 in_group_id     => 'in',                                                           +
+                 in_pull_id      => NULL,                                                           +
+                 in_columns      => ARRAY[                                                          +
+                        $COL$("test_data_key","integer",Key,"in_source.test_data_key",,,,)$COL$,    +
+                        $COL$("test_data_text","text",Attribute,"in_source.test_data_text",,,,)$COL$+
+                 ]::sys_syn.create_in_column[],                                                     +
+                 full_table_reference    => 'test_data',                                            +
+                 changes_table_reference => NULL,                                                   +
+                 full_sql                => NULL,                                                   +
+                 changes_sql             => NULL,                                                   +
+                 full_pre_sql            => NULL,                                                   +
+                 changes_pre_sql         => NULL,                                                   +
+                 full_post_sql           => NULL,                                                   +
+                 changes_post_sql        => NULL,                                                   +
+                 enable_deletes_implied  => TRUE,                                                   +
+                 full_prepull_id         => NULL,                                                   +
+                 changes_prepull_id      => NULL                                                    +
+         );
+(1 row)
+
+DO $$BEGIN
+        EXECUTE sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
+END$$;
+INSERT INTO public.test_data(
+        test_data_key, test_data_text)
+VALUES (1,              'test_data v1');
+INSERT INTO sys_syn.out_groups_def VALUES ('out');
+SELECT sys_syn.out_table_add('public', 'test_data', 'out');
+ out_table_add 
+---------------
+ 
+(1 row)
+
+SELECT public.test_data_pull(FALSE);
+ test_data_pull 
+----------------
+ t
+(1 row)
+
+SELECT public.test_data_out_move();
+ test_data_out_move 
+--------------------
+ t
+(1 row)
+
+UPDATE public.test_data_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_data_key = 1;
+SELECT public.test_data_out_processed();
+ test_data_out_processed 
+-------------------------
+ t
+(1 row)
+
+SELECT  out_baseline.key,
+        (in_data.key).*,
+        (in_data.attributes).*
+FROM    public.test_data_out_baseline out_baseline
+        LEFT JOIN public.test_data_in AS in_data USING (trans_id_in, key);
+ key | test_data_key | test_data_text 
+-----+---------------+----------------
+ (1) |             1 | test_data v1
+(1 row)
+
+ROLLBACK;

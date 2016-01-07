@@ -1,0 +1,8 @@
+BEGIN;
+
+CREATE EXTENSION tinyint
+    SCHEMA public;
+
+CREATE EXTENSION sys_syn;
+
+ROLLBACK;

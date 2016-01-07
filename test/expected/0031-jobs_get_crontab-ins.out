@@ -1,0 +1,64 @@
+BEGIN;
+CREATE EXTENSION tinyint
+    SCHEMA public;
+CREATE EXTENSION sys_syn;
+CREATE SCHEMA user_data
+    AUTHORIZATION postgres;
+CREATE TABLE user_data.in_1_test_table (
+        in_1_test_table_key integer NOT NULL,
+        in_1_test_table_text text,
+        CONSTRAINT in_1_test_table_pkey PRIMARY KEY (in_1_test_table_key));
+CREATE TABLE user_data.in_2_test_table (
+        in_2_test_table_key integer NOT NULL,
+        in_2_test_table_text text,
+        CONSTRAINT in_2_test_table_pkey PRIMARY KEY (in_2_test_table_key));
+INSERT INTO sys_syn.in_groups_def VALUES ('in_1');
+DO $$BEGIN
+    EXECUTE sys_syn.in_table_add_sql('user_data.in_1_test_table'::regclass, 'in_1');
+END$$;
+INSERT INTO sys_syn.in_groups_def VALUES ('in_2');
+DO $$BEGIN
+    EXECUTE sys_syn.in_table_add_sql('user_data.in_2_test_table'::regclass, 'in_2');
+END$$;
+INSERT INTO sys_syn.out_groups_def VALUES ('out_1');
+SELECT sys_syn.out_table_add('user_data', 'in_1_test_table', 'out_1');
+ out_table_add 
+---------------
+ 
+(1 row)
+
+SELECT sys_syn.out_table_add('user_data', 'in_2_test_table', 'out_1');
+ out_table_add 
+---------------
+ 
+(1 row)
+
+INSERT INTO sys_syn.out_groups_def VALUES ('out_2');
+SELECT sys_syn.out_table_add('user_data', 'in_1_test_table', 'out_2');
+ out_table_add 
+---------------
+ 
+(1 row)
+
+SELECT sys_syn.out_table_add('user_data', 'in_2_test_table', 'out_2');
+ out_table_add 
+---------------
+ 
+(1 row)
+
+SELECT sys_syn.in_pull_sequence_populate_assume();
+ in_pull_sequence_populate_assume 
+----------------------------------
+ 
+(1 row)
+
+SELECT sys_syn.jobs_get_crontab();
+                                                                                                                                                                                      jobs_get_crontab                                                                                                                                                                                      
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  6     2     *     *     *     psql 'contrib_regression' -c 'BEGIN;SELECT sys_syn.distribute_load(60);COMMIT;BEGIN;SELECT user_data.in_1_test_table_vacuum();COMMIT;BEGIN;SELECT user_data.in_1_test_table_pull(FALSE);COMMIT;BEGIN;SELECT user_data.in_1_test_table_out_1_move();COMMIT;BEGIN;SELECT user_data.in_1_test_table_out_2_move();COMMIT' > /dev/shm/sys_syn-in_1-pull.log 2>&1+
+  *     *     *     *     *     psql 'contrib_regression' -c 'BEGIN;SELECT sys_syn.distribute_load(60);COMMIT;BEGIN;SELECT user_data.in_1_test_table_out_1_processed();COMMIT;BEGIN;SELECT user_data.in_1_test_table_out_2_processed();COMMIT' > /dev/shm/sys_syn-in_1-processed.log 2>&1                                                                                                  +
+  6     2     *     *     *     psql 'contrib_regression' -c 'BEGIN;SELECT sys_syn.distribute_load(60);COMMIT;BEGIN;SELECT user_data.in_2_test_table_vacuum();COMMIT;BEGIN;SELECT user_data.in_2_test_table_pull(FALSE);COMMIT;BEGIN;SELECT user_data.in_2_test_table_out_1_move();COMMIT;BEGIN;SELECT user_data.in_2_test_table_out_2_move();COMMIT' > /dev/shm/sys_syn-in_2-pull.log 2>&1+
+  *     *     *     *     *     psql 'contrib_regression' -c 'BEGIN;SELECT sys_syn.distribute_load(60);COMMIT;BEGIN;SELECT user_data.in_2_test_table_out_1_processed();COMMIT;BEGIN;SELECT user_data.in_2_test_table_out_2_processed();COMMIT' > /dev/shm/sys_syn-in_2-processed.log 2>&1
+(1 row)
+
+ROLLBACK;

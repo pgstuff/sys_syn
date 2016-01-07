@@ -1,0 +1,59 @@
+BEGIN;
+CREATE EXTENSION tinyint
+    SCHEMA public;
+CREATE EXTENSION sys_syn;
+CREATE SCHEMA user_data
+    AUTHORIZATION postgres;
+CREATE TABLE user_data.test_table (
+        test_table_key integer NOT NULL,
+        test_table_text text,
+        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key));
+INSERT INTO sys_syn.in_groups_def VALUES ('in');
+DO $$BEGIN
+        EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+END$$;
+INSERT INTO user_data.test_table(
+        test_table_key, test_table_text)
+VALUES (1,              'Exclude from in'),
+       (2,              'Exclude from out'),
+       (3,              'test_data');
+INSERT INTO user_data.test_table_exclude VALUES (ROW(1));
+INSERT INTO sys_syn.out_groups_def VALUES ('out');
+SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+ out_table_add 
+---------------
+ 
+(1 row)
+
+INSERT INTO user_data.test_table_out_exclude VALUES (ROW(2));
+SELECT user_data.test_table_pull(FALSE);
+ test_table_pull 
+-----------------
+ t
+(1 row)
+
+SELECT user_data.test_table_out_move();
+ test_table_out_move 
+---------------------
+ t
+(1 row)
+
+SELECT key, delta_type, queue_state FROM user_data.test_table_out_queue;
+ key | delta_type | queue_state 
+-----+------------+-------------
+ (3) | Add        | Unread
+(1 row)
+
+SELECT user_data.test_table_vacuum();
+ test_table_vacuum 
+-------------------
+ 
+(1 row)
+
+SELECT * FROM user_data.test_table_in;
+ trans_id_in | key | attributes  | no_diff 
+-------------+-----+-------------+---------
+           2 | (3) | (test_data) | 
+(1 row)
+
+ROLLBACK;
