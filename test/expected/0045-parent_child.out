@@ -97,39 +97,65 @@ SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;
  (1) | Add        | Unread
 (1 row)
 
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_table_pull(FALSE);
-ERROR:  duplicate key value violates unique constraint "in_trans_log_pkey"
-DETAIL:  Key (trans_id_in)=(2) already exists.
-CONTEXT:  SQL statement "INSERT INTO sys_syn.in_trans_log (
-                trans_id_in,            pre_pull,                       changes_only,
-                trans_time,             in_table_ids
-        ) VALUES (
-                sys_syn.trans_id_get(), in_trans_start.pre_pull,        in_trans_start.changes_only,
-                CURRENT_TIMESTAMP,      in_trans_start.in_table_ids
-        )"
-PL/pgSQL function sys_syn.in_trans_start(boolean,text[],boolean) line 16 at SQL statement
-SQL statement "SELECT sys_syn.in_trans_start(changes_only, ARRAY['child_table']::TEXT[])"
-PL/pgSQL function user_data.child_table_pull(boolean) line 22 at PERFORM
+ child_table_pull 
+------------------
+ t
+(1 row)
+
 SELECT user_data.child_table_out_move();
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ child_table_out_move 
+----------------------
+ f
+(1 row)
+
 SELECT key, delta_type, queue_state FROM user_data.child_table_out_queue;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ key | delta_type | queue_state 
+-----+------------+-------------
+(0 rows)
+
 UPDATE user_data.parent_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).parent_table_key = 1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 SELECT user_data.parent_table_out_processed();
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ parent_table_out_processed 
+----------------------------
+ t
+(1 row)
+
 SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ key | delta_type | queue_state 
+-----+------------+-------------
+(0 rows)
+
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_table_pull(FALSE);
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ child_table_pull 
+------------------
+ t
+(1 row)
+
 SELECT user_data.child_table_out_move();
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ child_table_out_move 
+----------------------
+ t
+(1 row)
+
 SELECT key, delta_type, queue_state FROM user_data.child_table_out_queue;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ key | delta_type | queue_state 
+-----+------------+-------------
+ (2) | Add        | Unread
+(1 row)
+
 UPDATE user_data.child_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).child_table_key = 2;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 SELECT user_data.child_table_out_processed();
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ child_table_out_processed 
+---------------------------
+ t
+(1 row)
+
 SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ key | delta_type | queue_state 
+-----+------------+-------------
+(0 rows)
+
 ROLLBACK;

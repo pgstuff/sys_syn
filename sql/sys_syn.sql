@@ -5497,6 +5497,25 @@ SELECT  in_table_columns_def.in_table_id,
 FROM    sys_syn.in_table_columns_def;
 ALTER TABLE sys_syn.in_table_columns_view OWNER TO postgres;
 
+CREATE VIEW sys_syn.out_queue_data_view_columns_view AS
+SELECT  out_tables_def.in_table_id,
+        out_tables_def.out_group_id,
+        pg_attribute.attname,
+        format_type(pg_attribute.atttypid, pg_attribute.atttypmod)
+FROM    sys_syn.out_tables_def JOIN
+        --pg_namespace ON
+        --      pg_namespace.oid = out_tables_def.schema JOIN
+        pg_class ON
+                pg_class.relnamespace = out_tables_def.schema AND
+                pg_class.relname = out_tables_def.in_table_id||'_'||out_tables_def.out_group_id||'_queue_data' JOIN
+        pg_attribute ON
+                pg_attribute.attrelid = pg_class.oid AND
+                pg_attribute.attnum > 0 AND
+                NOT pg_attribute.attisdropped
+WHERE   out_tables_def.data_view = TRUE
+ORDER BY pg_attribute.attnum;
+ALTER TABLE sys_syn.out_queue_data_view_columns_view OWNER TO postgres;
+
 /*
 CREATE VIEW sys_syn.foreign_keys_view AS
 SELECT  parent_namespace.nspname AS parent_schema,

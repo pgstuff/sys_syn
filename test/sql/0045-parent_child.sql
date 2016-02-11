@@ -59,6 +59,7 @@ SELECT user_data.parent_table_pull(FALSE);
 SELECT user_data.parent_table_out_move();
 SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;
 
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_table_pull(FALSE);
 SELECT user_data.child_table_out_move();
 SELECT key, delta_type, queue_state FROM user_data.child_table_out_queue;
@@ -67,6 +68,7 @@ UPDATE user_data.parent_table_out_queue SET queue_state = 'Processed'::sys_syn.q
 SELECT user_data.parent_table_out_processed();
 SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;
 
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_table_pull(FALSE);
 SELECT user_data.child_table_out_move();
 SELECT key, delta_type, queue_state FROM user_data.child_table_out_queue;
