@@ -67,7 +67,7 @@ SELECT user_data.child_table_pull(FALSE);
 SELECT user_data.child_table_out_move();
 SELECT key, delta_type, queue_state FROM user_data.child_table_out_queue;
 
-UPDATE user_data.parent_table_out_queue SET queue_state = 'Hold'::sys_syn.queue_state WHERE (key).parent_table_key_1 = 1;
+UPDATE user_data.parent_table_out_queue SET queue_state = 'Hold'::sys_syn.queue_state, hold_reason_text = 'Testing Hold' WHERE (key).parent_table_key_1 = 1;
 SELECT user_data.parent_table_out_processed();
 SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;
 

@@ -26,7 +26,7 @@ SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
  DECLARE                                                                                              +
          _prepull_def            sys_syn.prepulls_def%ROWTYPE;                                        +
          _in_pull_state          sys_syn.in_pulls_state%ROWTYPE;                                      +
-         _possible_changes       BOOLEAN = FALSE;                                                     +
+         _possible_changes       BOOLEAN := FALSE;                                                    +
  BEGIN                                                                                                +
          _prepull_def := (                                                                            +
                  SELECT  prepulls_def                                                                 +
@@ -50,7 +50,7 @@ SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
                  test_table_key,                                                                      +
                  test_table_text                                                                      +
          FROM    user_data.test_table;                                                                +
-         IF FOUND THEN _possible_changes = TRUE; END IF;                                              +
+         IF FOUND THEN _possible_changes := TRUE; END IF;                                             +
                                                                                                       +
          PERFORM sys_syn.in_trans_finish();                                                           +
                                                                                                       +

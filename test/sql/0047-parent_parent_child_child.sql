@@ -104,7 +104,7 @@ SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
 SELECT key, delta_type, queue_state FROM user_data.child_2_out_queue;
 
-UPDATE user_data.parent_1_out_queue SET queue_state = 'Hold'::sys_syn.queue_state WHERE (key).parent_1_key = 1;
+UPDATE user_data.parent_1_out_queue SET queue_state = 'Hold'::sys_syn.queue_state, hold_reason_text = 'Testing parent-child dependency.' WHERE (key).parent_1_key = 1;
 SELECT user_data.parent_1_out_processed();
 SELECT key, delta_type, queue_state FROM user_data.parent_1_out_queue;
 

@@ -61,9 +61,9 @@ SELECT user_data.test_table_out_move();
 (1 row)
 
 SELECT * FROM user_data.test_table_out_queue_data;
- sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key | test_table_text 
--------------+---------------------+--------------------+---------------------+------------------+------------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+-----------------
- (1)         |                   2 | Add                | Unread              |                  |                        |                      |                             |                            |                           |                        |                          |                      |                        |              1 | test_data
+ sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_reading_key | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key | test_table_text 
+-------------+---------------------+--------------------+---------------------+------------------+------------------------+---------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+-----------------
+ (1)         |                   2 | Add                | Unread              |                  |                        | (0,1)               |                      |                             |                            |                           |                        |                          |                      |                        |              1 | test_data
 (1 row)
 
 ROLLBACK;

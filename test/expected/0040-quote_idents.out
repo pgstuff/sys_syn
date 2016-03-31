@@ -55,6 +55,7 @@ SELECT sys_syn.out_table_add_sql('User Data', 'Test Table', 'Out Group');
                         $COL$("sys_syn_queue_state","out_queue.queue_state",queue_state,"new.sys_syn_queue_state")$COL$,                    +
                         $COL$("sys_syn_queue_id","out_queue.queue_id",queue_id,"new.sys_syn_queue_id")$COL$,                                +
                         $COL$("sys_syn_queue_priority","out_queue.queue_priority",queue_priority,"new.sys_syn_queue_priority")$COL$,        +
+                        $COL$("sys_syn_reading_key","out_queue.ctid",,)$COL$,                                                               +
                         $COL$("sys_syn_hold_updated","out_queue.hold_updated",,)$COL$,                                                      +
                         $COL$("sys_syn_hold_trans_id_first","out_queue.hold_trans_id_first",,)$COL$,                                        +
                         $COL$("sys_syn_hold_trans_id_last","out_queue.hold_trans_id_last",,)$COL$,                                          +
