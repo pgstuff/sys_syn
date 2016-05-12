@@ -17,7 +17,7 @@ SELECT sys_syn.in_table_add_sql('user_data.parent_table'::regclass, 'in');
                                              in_table_add_sql                                              
 -----------------------------------------------------------------------------------------------------------
  SELECT sys_syn.in_table_add (                                                                            +
-                 schema          => 'user_data',                                                          +
+                 schema          => 'user_data'::regnamespace,                                            +
                  in_table_id     => 'parent_table',                                                       +
                  in_group_id     => 'in',                                                                 +
                  in_pull_id      => NULL,                                                                 +

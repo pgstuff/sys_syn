@@ -888,7 +888,7 @@ BEGIN
                 full_post_sql,                  changes_post_sql,
                 enable_deletes_implied, record_comparison_different,    record_comparison_same);
 
-        _sql_buffer := 'CREATE TYPE ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_key') || ' AS (';
+        _sql_buffer := 'CREATE TYPE ' || schema::text || '.' || quote_ident(in_table_id||'_in_key') || ' AS (';
         _sql_delimit := FALSE;
         FOR     _in_column IN
         SELECT  *
@@ -913,7 +913,7 @@ BEGIN
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TYPE ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_attributes') || ' AS (';
+        _sql_buffer := 'CREATE TYPE ' || schema::text || '.' || quote_ident(in_table_id||'_in_attributes') || ' AS (';
         _sql_delimit := FALSE;
         FOR     _in_column IN
         SELECT  *
@@ -934,7 +934,7 @@ BEGIN
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TYPE ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_no_diff') || ' AS (';
+        _sql_buffer := 'CREATE TYPE ' || schema::text || '.' || quote_ident(in_table_id||'_in_no_diff') || ' AS (';
         _sql_delimit := FALSE;
         FOR     _in_column IN
         SELECT  *
@@ -970,34 +970,34 @@ BEGIN
                         _in_column.source_in_expression);
         END LOOP;
 
-        _sql_buffer := 'CREATE TABLE ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in') || ' (
+        _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_in') || ' (
         trans_id_in sys_syn.trans_id DEFAULT sys_syn.trans_id_get() NOT NULL,
-        key ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_key') || ' NOT NULL,
-        attributes ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_attributes') ||
+        key ' || schema::text || '.' || quote_ident(in_table_id||'_in_key') || ' NOT NULL,
+        attributes ' || schema::text || '.' || quote_ident(in_table_id||'_in_attributes') ||
         CASE WHEN _attributes_array THEN '[]' ELSE '' END || ',
-        no_diff ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_no_diff') || '
+        no_diff ' || schema::text || '.' || quote_ident(in_table_id||'_in_no_diff') || '
 );';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'ALTER TABLE ONLY ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in') || '
+        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_in') || '
         ADD CONSTRAINT ' || quote_ident(in_table_id||'_in_pkey') || ' PRIMARY KEY (trans_id_in, key);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'ALTER TABLE ONLY ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in') || '
+        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_in') || '
         ADD CONSTRAINT ' || quote_ident(in_table_id||'_in_sys_syn_trans_id_fkey') || ' FOREIGN KEY (trans_id_in)
         REFERENCES sys_syn.in_trans_log(trans_id_in) ON UPDATE RESTRICT ON DELETE RESTRICT;';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TABLE ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_exclude') || ' (
-        key ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_key') || ' NOT NULL
+        _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ' (
+        key ' || schema::text || '.' || quote_ident(in_table_id||'_in_key') || ' NOT NULL
 );';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'ALTER TABLE ONLY ' || quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_exclude') || '
+        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || '
         ADD CONSTRAINT ' || quote_ident(in_table_id||'_exclude_pkey') || ' PRIMARY KEY (key);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
@@ -1252,7 +1252,8 @@ BEGIN
                         IF _sql_buffer IS NULL THEN
                                 _sql_buffer := $$SELECT sys_syn.in_table_add (
                 schema          => $$||(
-                                        SELECT  quote_literal(COALESCE(in_table_add_sql.schema::text, pg_namespace.nspname))
+                                        SELECT  quote_literal(quote_ident(
+                                                COALESCE(in_table_add_sql.schema::text, pg_namespace.nspname))) || '::regnamespace'
                                         FROM    pg_catalog.pg_namespace JOIN
                                                 pg_catalog.pg_class ON
                                                         pg_class.relnamespace = pg_namespace.oid
@@ -1578,7 +1579,7 @@ BEGIN
                 FROM    sys_syn.in_table_columns_def
                 WHERE   in_table_columns_def.in_table_id = in_table_columns_add.in_table_id);
 
-        _sql_buffer := 'ALTER TYPE ' || quote_ident(_in_table_def.schema::text) || '.' || quote_ident(in_table_id||'_in_key') || '
+        _sql_buffer := 'ALTER TYPE ' || _in_table_def.schema::text || '.' || quote_ident(in_table_id||'_in_key') || '
 ';
         _sql_delimit := FALSE;
         FOR     _in_column IN
@@ -1602,7 +1603,7 @@ BEGIN
                 EXECUTE _sql_buffer;
         END IF;
 
-        _sql_buffer := 'ALTER TYPE ' || quote_ident(_in_table_def.schema::text) || '.' || quote_ident(in_table_id||'_in_attributes')
+        _sql_buffer := 'ALTER TYPE ' || _in_table_def.schema::text || '.' || quote_ident(in_table_id||'_in_attributes')
                 || '
 ';
         _sql_delimit := FALSE;
@@ -1627,7 +1628,7 @@ BEGIN
                 EXECUTE _sql_buffer;
         END IF;
 
-        _sql_buffer := 'ALTER TYPE ' || quote_ident(_in_table_def.schema::text) || '.' || quote_ident(in_table_id||'_in_no_diff')
+        _sql_buffer := 'ALTER TYPE ' || _in_table_def.schema::text || '.' || quote_ident(in_table_id||'_in_no_diff')
                 || '
 ';
         _sql_delimit := FALSE;
@@ -2003,7 +2004,7 @@ BEGIN
 
                         IF _sql_buffer IS NULL THEN
                                 _sql_buffer := $$SELECT sys_syn.out_table_add (
-                schema                  => $$||quote_literal(out_table_add_sql.schema::text)||$$,
+                schema                  => $$||quote_literal(out_table_add_sql.schema::text) || '::regnamespace'||$$,
                 in_table_id             => $$||quote_literal(in_table_id)||$$,
                 out_group_id            => $$||quote_literal(out_group_id)||$$,
                 out_columns             => ARRAY[
@@ -2131,16 +2132,16 @@ BEGIN
         VALUES (
                 in_table_id,    out_group_id);
 
-        _sql_name_table_in              := quote_ident(_in_table_def.schema::text) || '.' || quote_ident(in_table_id||'_in');
-        _sql_name_type_in_key           := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_key');
-        _sql_name_type_in_attributes    := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_attributes') ||
+        _sql_name_table_in              := _in_table_def.schema::text || '.' || quote_ident(in_table_id||'_in');
+        _sql_name_type_in_key           := schema::text || '.' || quote_ident(in_table_id||'_in_key');
+        _sql_name_type_in_attributes    := schema::text || '.' || quote_ident(in_table_id||'_in_attributes') ||
                 CASE WHEN _in_table_def.attributes_array THEN '[]' ELSE '' END;
-        _sql_name_type_in_no_diff       := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_in_no_diff');
+        _sql_name_type_in_no_diff       := schema::text || '.' || quote_ident(in_table_id||'_in_no_diff');
 
-        _sql_name_table_log     := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_log');
-        _sql_name_table_temp    := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_temp');
-        _sql_name_table_queue_pid:= quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue_pid');
-        _sql_name_table_queue_bulk:= quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue_bulk');
+        _sql_name_table_log     := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_log');
+        _sql_name_table_temp    := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_temp');
+        _sql_name_table_queue_pid:= schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue_pid');
+        _sql_name_table_queue_bulk:= schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue_bulk');
 
         _sql_buffer := 'CREATE UNLOGGED TABLE '||_sql_name_table_temp||' (
         key '||_sql_name_type_in_key||' NOT NULL,
@@ -2165,7 +2166,7 @@ BEGIN
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_table_orphaned := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_orphaned');
+        _sql_name_table_orphaned := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_orphaned');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_orphaned||' (
         key '||_sql_name_type_in_key||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL
@@ -2188,7 +2189,7 @@ BEGIN
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_table_locked := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_locked');
+        _sql_name_table_locked := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_locked');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_locked||' (
         key '||_sql_name_type_in_key||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL
@@ -2212,7 +2213,7 @@ BEGIN
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_table_queue := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue');
+        _sql_name_table_queue := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_queue||' (
         key '||_sql_name_type_in_key||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL,
@@ -2240,7 +2241,7 @@ BEGIN
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_temp := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue_update');
+        _sql_name_temp := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue_update');
         _sql_buffer := $$CREATE FUNCTION $$||_sql_name_temp||$$() RETURNS trigger
         LANGUAGE plpgsql
         AS $BODY$
@@ -2254,12 +2255,12 @@ $$;
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_queue_update');
         _sql_buffer := 'CREATE TRIGGER '||_sql_name_temp||' BEFORE UPDATE ON '||_sql_name_table_queue||
-                ' FOR EACH ROW EXECUTE PROCEDURE '||quote_ident(schema::text) || '.' || _sql_name_temp||'();
+                ' FOR EACH ROW EXECUTE PROCEDURE '||schema::text || '.' || _sql_name_temp||'();
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_table_baseline := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_baseline');
+        _sql_name_table_baseline := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_baseline');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_baseline||' (
         key '||_sql_name_type_in_key||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL
@@ -2283,7 +2284,7 @@ $$;
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_table_exclude := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_exclude');
+        _sql_name_table_exclude := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_exclude');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_exclude||' (
         key '||_sql_name_type_in_key||' NOT NULL
 );
@@ -2346,7 +2347,7 @@ $$;
             EXECUTE _sql_buffer;
         END IF;
 
-        _sql_name_temp := quote_ident(schema::text) || '.' || quote_ident(in_table_id||'_'||out_group_id||'_priority');
+        _sql_name_temp := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_priority');
         _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_sql_name_temp||'(key '||_sql_name_type_in_key||
                 ', delta_type sys_syn.delta_type, attributes_new '||_sql_name_type_in_attributes||', no_diff_new '||
                 _sql_name_type_in_no_diff||', attributes_baseline '||_sql_name_type_in_attributes||')
@@ -2444,7 +2445,7 @@ BEGIN
                                 pg_class.relnamespace = pg_namespace.oid JOIN
                         pg_catalog.pg_attribute ON
                                 (pg_attribute.attrelid = pg_class.oid)
-                WHERE   pg_namespace.nspname = _in_table_def.schema::text AND
+                WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
                         pg_class.relname = _in_column_type_name AND
                         pg_attribute.attnum > 0 AND
                         NOT pg_attribute.attisdropped AND
@@ -2461,7 +2462,7 @@ BEGIN
                                 pg_class.relnamespace = pg_namespace.oid JOIN
                         pg_catalog.pg_attribute ON
                                 (pg_attribute.attrelid = pg_class.oid)
-                WHERE   pg_namespace.nspname = _in_table_def.schema::text AND
+                WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
                         pg_class.relname = _in_column_type_name AND
                         pg_attribute.attnum > 0 AND
                         NOT pg_attribute.attisdropped AND
@@ -2478,7 +2479,7 @@ BEGIN
                                 pg_class.relnamespace = pg_namespace.oid JOIN
                         pg_catalog.pg_attribute ON
                                 (pg_attribute.attrelid = pg_class.oid)
-                WHERE   pg_namespace.nspname = _in_table_def.schema::text AND
+                WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
                         pg_class.relname = _in_column_type_name AND
                         pg_attribute.attnum > 0 AND
                         NOT pg_attribute.attisdropped AND
@@ -2523,7 +2524,7 @@ BEGIN
                                 pg_class.relnamespace = pg_namespace.oid JOIN
                         pg_catalog.pg_attribute ON
                                 (pg_attribute.attrelid = pg_class.oid)
-                WHERE   pg_namespace.nspname = _in_table_def.schema::text AND
+                WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
                         pg_class.relname = _in_column_type_name AND
                         pg_attribute.attnum > 0 AND
                         NOT pg_attribute.attisdropped AND
@@ -2540,7 +2541,7 @@ BEGIN
                                 pg_class.relnamespace = pg_namespace.oid JOIN
                         pg_catalog.pg_attribute ON
                                 (pg_attribute.attrelid = pg_class.oid)
-                WHERE   pg_namespace.nspname = _in_table_def.schema::text AND
+                WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
                         pg_class.relname = _in_column_type_name AND
                         pg_attribute.attnum > 0 AND
                         NOT pg_attribute.attisdropped AND
@@ -2557,7 +2558,7 @@ BEGIN
                                 pg_class.relnamespace = pg_namespace.oid JOIN
                         pg_catalog.pg_attribute ON
                                 (pg_attribute.attrelid = pg_class.oid)
-                WHERE   pg_namespace.nspname = _in_table_def.schema::text AND
+                WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
                         pg_class.relname = _in_column_type_name AND
                         pg_attribute.attnum > 0 AND
                         NOT pg_attribute.attisdropped AND
@@ -2619,7 +2620,7 @@ DECLARE
 BEGIN
         _in_pull_id_literal             := quote_literal(in_pull_def.in_pull_id);
 
-        _function_name_ident := quote_ident(in_pull_def.schema::text) || '.' ||
+        _function_name_ident := in_pull_def.schema::text || '.' ||
                 quote_ident(in_pull_def.in_pull_id || '_pull');
         _sql_buffer := $$
 CREATE OR REPLACE FUNCTION $$||_function_name_ident||$$(changes_only boolean)
@@ -2674,7 +2675,7 @@ $$;
         ORDER BY in_tables_def.in_pull_order
         LOOP
 
-                _in_table_ident         := quote_ident(_in_table_def.schema::text) || '.' ||
+                _in_table_ident         := _in_table_def.schema::text || '.' ||
                         quote_ident(_in_table_def.in_table_id||'_in');
 
                 IF EXISTS (
@@ -2772,7 +2773,7 @@ $$;
 
                                 END LOOP;
 
-                                _sql_buffer := _sql_buffer || $$)::$$ || quote_ident(_in_table_def.schema::text) || $$.$$ ||
+                                _sql_buffer := _sql_buffer || $$)::$$ || _in_table_def.schema::text || $$.$$ ||
                                         quote_ident(_in_table_def.in_table_id || '_in_attributes') || $$
                                 ORDER BY
                                         $$;
@@ -2905,7 +2906,7 @@ $$;
         ORDER BY in_tables_def.in_pull_order
         LOOP
 
-                _in_table_ident         := quote_ident(_in_table_def.schema::text) || '.' ||
+                _in_table_ident         := _in_table_def.schema::text || '.' ||
                         quote_ident(_in_table_def.in_table_id||'_in');
 
                 IF _in_table_def.full_pre_sql IS NOT NULL THEN
@@ -2990,7 +2991,7 @@ $$;
 
                                 END LOOP;
 
-                                _sql_buffer := _sql_buffer || $$)::$$ || quote_ident(_in_table_def.schema::text) || $$.$$ ||
+                                _sql_buffer := _sql_buffer || $$)::$$ || _in_table_def.schema::text || $$.$$ ||
                                         quote_ident(_in_table_def.in_table_id || '_in_attributes') || $$
                                 ORDER BY
                                         $$;
@@ -3168,9 +3169,9 @@ DECLARE
         _sql_buffer             TEXT;
 BEGIN
         _in_table_id_literal    := quote_literal(in_table_def.in_table_id);
-        _in_table_ident         := quote_ident(in_table_def.schema::text) || '.' || quote_ident(in_table_def.in_table_id||'_in');
+        _in_table_ident         := in_table_def.schema::text || '.' || quote_ident(in_table_def.in_table_id||'_in');
 
-        _function_name_ident := quote_ident(in_table_def.schema::text) || '.' ||
+        _function_name_ident := in_table_def.schema::text || '.' ||
                 quote_ident(in_table_def.in_table_id||'_delete_unmoved');
         _sql_buffer := $$
 CREATE OR REPLACE FUNCTION $$||_function_name_ident||$$(delete_unmoved_trans_id_in sys_syn.trans_id)
@@ -3220,7 +3221,7 @@ $DEFINITION$
 $$;
         EXECUTE _sql_buffer;
 
-        _function_name_ident := quote_ident(in_table_def.schema::text) || '.' || quote_ident(in_table_def.in_table_id||'_vacuum');
+        _function_name_ident := in_table_def.schema::text || '.' || quote_ident(in_table_def.in_table_id||'_vacuum');
         _sql_buffer := $$
 CREATE OR REPLACE FUNCTION $$||_function_name_ident||
                                                   $$(preserve_trans_id_in_and_after sys_syn.trans_id DEFAULT NULL::sys_syn.trans_id)
@@ -3458,7 +3459,7 @@ BEGIN
                         pg_class.relnamespace = pg_namespace.oid JOIN
                 pg_catalog.pg_attribute ON
                         (pg_attribute.attrelid = pg_class.oid)
-        WHERE   pg_namespace.nspname = _in_table_def.schema::text AND
+        WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
                 pg_class.relname = _in_column_type_name AND
                 pg_attribute.attnum > 0 AND
                 NOT pg_attribute.attisdropped
@@ -3504,13 +3505,13 @@ BEGIN
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = out_table_def.in_table_id);
 
-        _sql_name_out_view := quote_ident(out_table_def.schema::text) || '.' ||
+        _sql_name_out_view := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id||'_'||out_table_def.out_group_id||'_queue_data');
         _sql_name_out_view_rule_update :=
                 quote_ident(out_table_def.in_table_id||'_'||out_table_def.out_group_id||'_queue_data_update');
-        _sql_name_out_queue := quote_ident(out_table_def.schema::text) || '.' ||
+        _sql_name_out_queue := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id||'_'||out_table_def.out_group_id||'_queue');
-        _sql_name_in := quote_ident(_in_table_def.schema::text) || '.' ||
+        _sql_name_in := _in_table_def.schema::text || '.' ||
                 quote_ident(_in_table_def.in_table_id||'_in');
         _sql_buffer := 'DROP VIEW IF EXISTS '||_sql_name_out_view||';
 
@@ -3726,30 +3727,30 @@ BEGIN
                 WHERE   in_tables_def.in_table_id = out_table_def.in_table_id);
 
         _in_table_id_literal            := quote_literal(_in_table_def.in_table_id);
-        _in_table_ident                 := quote_ident(_in_table_def.schema::text) || '.' ||
+        _in_table_ident                 := _in_table_def.schema::text || '.' ||
                 quote_ident(_in_table_def.in_table_id||'_in');
-        _in_table_exclude_ident         := quote_ident(_in_table_def.schema::text) || '.' ||
+        _in_table_exclude_ident         := _in_table_def.schema::text || '.' ||
                 quote_ident(_in_table_def.in_table_id||'_exclude');
         _out_group_id_literal           := quote_literal(out_table_def.out_group_id);
-        _out_table_baseline_ident       := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_baseline_ident       := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_baseline');
-        _out_table_locked_ident := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_locked_ident := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_locked');
-        _out_table_orphaned_ident       := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_orphaned_ident       := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_orphaned');
-        _out_table_queue_ident          := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_queue_ident          := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue');
-        _out_table_temp_ident           := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_temp_ident           := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_temp');
-        _out_table_exclude_ident        := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_exclude_ident        := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_exclude');
-        _out_table_queue_bulk_ident     := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_queue_bulk_ident     := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_bulk');
-        _out_table_queue_pid_ident      := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_queue_pid_ident      := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_pid');
-        _out_table_log_ident            := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_log_ident            := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_log');
-        _out_proc_priority_ident        := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_proc_priority_ident        := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_priority');
 
         IF EXISTS (
@@ -3757,7 +3758,7 @@ BEGIN
                 FROM    sys_syn.in_foreign_keys
                 WHERE   foreign_table_id = out_table_def.in_table_id) THEN
 
-                _function_name_ident := quote_ident(out_table_def.schema::text) || '.' ||
+                _function_name_ident := out_table_def.schema::text || '.' ||
                         quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_foreign_processed');
                 _sql_buffer := $$
 CREATE OR REPLACE FUNCTION $$||_function_name_ident||$$() RETURNS BOOLEAN
@@ -3807,7 +3808,7 @@ $$;
                 EXECUTE _sql_buffer;
         END IF;
 
-        _function_name_ident := quote_ident(out_table_def.schema::text) || '.' ||
+        _function_name_ident := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_move');
         _sql_buffer := $$
 CREATE OR REPLACE FUNCTION $$||_function_name_ident||
@@ -3917,7 +3918,7 @@ $$;
                 WHERE   foreign_table_id = out_table_def.in_table_id) THEN
 
                 _sql_buffer := _sql_buffer || $$
-        PERFORM $$||quote_ident(out_table_def.schema::text) || '.' ||
+        PERFORM $$||out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_foreign_processed')||$$();
 $$;
         END IF;
@@ -4202,7 +4203,7 @@ $DEFINITION$;
 $$;
         EXECUTE _sql_buffer;
 
-        _function_name_ident := quote_ident(out_table_def.schema::text) || '.' ||
+        _function_name_ident := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_processed');
         _sql_buffer := $$
 CREATE OR REPLACE FUNCTION $$||_function_name_ident||$$() RETURNS BOOLEAN
@@ -4324,7 +4325,7 @@ $$;
 
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_update');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||quote_ident(out_table_def.schema::text) || '.' || _function_name_ident||$$()
+CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$()
         RETURNS trigger
         LANGUAGE plpgsql
         AS $DEFINITION$
@@ -4392,7 +4393,7 @@ $$;
 
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_claim');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||quote_ident(out_table_def.schema::text) || '.' || _function_name_ident||$$(
+CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(
         queue_id        smallint DEFAULT NULL,
         limit_rows      integer DEFAULT NULL,
         queue_count     smallint DEFAULT NULL,
@@ -4473,7 +4474,7 @@ $$;
         IF out_table_def.data_view THEN
                 _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_bulk');
                 _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||quote_ident(out_table_def.schema::text) || '.' || _function_name_ident||$$(queue_id SMALLINT)
+CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(queue_id SMALLINT)
         RETURNS boolean
         LANGUAGE plpgsql
         COST 20
@@ -4521,7 +4522,7 @@ $$;
 
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_id_claim');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||quote_ident(out_table_def.schema::text) || '.' || _function_name_ident||$$()
+CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$()
         RETURNS smallint
         LANGUAGE plpgsql
         SECURITY DEFINER
@@ -4606,7 +4607,7 @@ $$;
 
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_pid_health');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||quote_ident(out_table_def.schema::text) || '.' || _function_name_ident||$$(
+CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(
         check_assignment_size   boolean DEFAULT true,
         check_pid_used_age      boolean DEFAULT true)
         RETURNS TABLE(result text)
@@ -4699,17 +4700,17 @@ BEGIN
 
         _indent_sql := repeat(E'        ', code_indent);
 
-        _out_table_baseline_ident       := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_baseline_ident       := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_baseline');
-        _out_table_locked_ident := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_locked_ident := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_locked');
-        _out_table_orphaned_ident       := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_orphaned_ident       := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_orphaned');
-        _out_table_queue_ident  := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_queue_ident  := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue');
-        _out_table_temp_ident   := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_temp_ident   := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_temp');
-        _out_table_log_ident   := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_log_ident   := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_log');
 
         _sql_buffer := $$ AND
@@ -4919,9 +4920,9 @@ BEGIN
                 RETURN '';
         END IF;
 
-        _out_table_orphaned_ident       := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_orphaned_ident       := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_orphaned');
-        _out_table_temp_ident           := quote_ident(out_table_def.schema::text) || '.' ||
+        _out_table_temp_ident           := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_temp');
 
         IF _foreign_data_table_needed THEN

@@ -13,7 +13,7 @@ SELECT sys_syn.in_table_add_sql('"User Data"."Test Table"'::regclass, 'In Group'
                                              in_table_add_sql                                              
 -----------------------------------------------------------------------------------------------------------
  SELECT sys_syn.in_table_add (                                                                            +
-                 schema          => 'User Data',                                                          +
+                 schema          => '"User Data"'::regnamespace,                                          +
                  in_table_id     => 'Test Table',                                                         +
                  in_group_id     => 'In Group',                                                           +
                  in_pull_id      => NULL,                                                                 +
@@ -42,11 +42,11 @@ INSERT INTO "User Data"."Test Table"(
         "Test Table Key", "Test Table Text")
 VALUES (1,              'test_data v1');
 INSERT INTO sys_syn.out_groups_def VALUES ('Out Group');
-SELECT sys_syn.out_table_add_sql('User Data', 'Test Table', 'Out Group');
+SELECT sys_syn.out_table_add_sql('"User Data"'::regnamespace, 'Test Table', 'Out Group');
                                                               out_table_add_sql                                                              
 ---------------------------------------------------------------------------------------------------------------------------------------------
  SELECT sys_syn.out_table_add (                                                                                                             +
-                 schema                  => 'User Data',                                                                                    +
+                 schema                  => '"User Data"'::regnamespace,                                                                    +
                  in_table_id             => 'Test Table',                                                                                   +
                  out_group_id            => 'Out Group',                                                                                    +
                  out_columns             => ARRAY[                                                                                          +
@@ -85,7 +85,7 @@ SELECT sys_syn.out_table_add_sql('User Data', 'Test Table', 'Out Group');
 (1 row)
 
 DO $$BEGIN
-        EXECUTE sys_syn.out_table_add_sql('User Data', 'Test Table', 'Out Group');
+        EXECUTE sys_syn.out_table_add_sql('"User Data"'::regnamespace, 'Test Table', 'Out Group');
 END$$;
 SELECT "User Data"."Test Table_pull"(FALSE);
  Test Table_pull 

@@ -11,7 +11,7 @@ SELECT sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
                                           in_table_add_sql                                           
 -----------------------------------------------------------------------------------------------------
  SELECT sys_syn.in_table_add (                                                                      +
-                 schema          => 'public',                                                       +
+                 schema          => 'public'::regnamespace,                                         +
                  in_table_id     => 'test_data',                                                    +
                  in_group_id     => 'in',                                                           +
                  in_pull_id      => NULL,                                                           +
