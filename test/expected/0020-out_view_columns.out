@@ -72,6 +72,7 @@ SELECT * FROM user_data.test_table_out_queue_data;
  (1)         |              1 |                1 | TEST_DATA
 (1 row)
 
+UPDATE user_data.test_table_out_queue_data SET processing_state = 2 WHERE test_table_key = 1;
 UPDATE user_data.test_table_out_queue_data SET processing_state = 3 WHERE test_table_key = 1;
 SELECT user_data.test_table_out_processed();
  test_table_out_processed 

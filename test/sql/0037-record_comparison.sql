@@ -99,6 +99,7 @@ SELECT user_data.test_table_out_move();
 SELECT  test_table_out_queue.key
 FROM    user_data.test_table_out_queue;
 
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 SELECT user_data.test_table_out_processed();
 
@@ -126,6 +127,7 @@ SELECT user_data.test_table_out_move();
 SELECT  test_table_out_queue.key
 FROM    user_data.test_table_out_queue;
 
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 SELECT user_data.test_table_out_processed();
 

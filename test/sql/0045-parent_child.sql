@@ -64,6 +64,7 @@ SELECT user_data.child_table_pull(FALSE);
 SELECT user_data.child_table_out_move();
 SELECT key, delta_type, queue_state FROM user_data.child_table_out_queue;
 
+UPDATE user_data.parent_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).parent_table_key = 1;
 UPDATE user_data.parent_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).parent_table_key = 1;
 SELECT user_data.parent_table_out_processed();
 SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;
@@ -73,6 +74,7 @@ SELECT user_data.child_table_pull(FALSE);
 SELECT user_data.child_table_out_move();
 SELECT key, delta_type, queue_state FROM user_data.child_table_out_queue;
 
+UPDATE user_data.child_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).child_table_key = 2;
 UPDATE user_data.child_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).child_table_key = 2;
 SELECT user_data.child_table_out_processed();
 SELECT key, delta_type, queue_state FROM user_data.parent_table_out_queue;

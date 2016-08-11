@@ -58,6 +58,7 @@ SELECT public.test_data_out_move();
  t
 (1 row)
 
+UPDATE public.test_data_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_data_key = 1;
 UPDATE public.test_data_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_data_key = 1;
 SELECT public.test_data_out_processed();
  test_data_out_processed 

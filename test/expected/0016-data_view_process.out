@@ -61,11 +61,12 @@ SELECT user_data.test_table_out_move();
 (1 row)
 
 SELECT * FROM user_data.test_table_out_queue_data;
- sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_reading_key | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key | test_table_text 
--------------+---------------------+--------------------+---------------------+------------------+------------------------+---------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+-----------------
- (1)         |                   2 | Add                | Unread              |                  |                        | (0,1)               |                      |                             |                            |                           |                        |                          |                      |                        |              1 | test_data
+ sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key | test_table_text 
+-------------+---------------------+--------------------+---------------------+------------------+------------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+-----------------
+ (1)         |                   2 | Add                | Unread              |                  |                        |                      |                             |                            |                           |                        |                          |                      |                        |              1 | test_data
 (1 row)
 
+UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Reading'::sys_syn.queue_state WHERE test_table_key = 1;
 UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Processed'::sys_syn.queue_state WHERE test_table_key = 1;
 SELECT user_data.test_table_out_processed();
  test_table_out_processed 
@@ -74,8 +75,8 @@ SELECT user_data.test_table_out_processed();
 (1 row)
 
 SELECT * FROM user_data.test_table_out_queue_data;
- sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_reading_key | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key | test_table_text 
--------------+---------------------+--------------------+---------------------+------------------+------------------------+---------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+-----------------
+ sys_syn_key | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_hold_reason_text | sys_syn_trans_id_out | sys_syn_processed_time | test_table_key | test_table_text 
+-------------+---------------------+--------------------+---------------------+------------------+------------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+--------------------------+----------------------+------------------------+----------------+-----------------
 (0 rows)
 
 ROLLBACK;

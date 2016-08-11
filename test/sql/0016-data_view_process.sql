@@ -34,6 +34,8 @@ SELECT user_data.test_table_out_move();
 
 SELECT * FROM user_data.test_table_out_queue_data;
 
+UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Reading'::sys_syn.queue_state WHERE test_table_key = 1;
+
 UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Processed'::sys_syn.queue_state WHERE test_table_key = 1;
 
 SELECT user_data.test_table_out_processed();

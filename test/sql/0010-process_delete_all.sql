@@ -31,6 +31,7 @@ SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
 
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 SELECT user_data.test_table_out_processed();
 
@@ -45,6 +46,7 @@ DELETE FROM user_data.test_table WHERE test_table_key = 1;
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 SELECT user_data.test_table_out_processed();
 

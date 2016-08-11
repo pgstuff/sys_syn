@@ -35,6 +35,7 @@ END$$;
 
 SELECT "User Data"."Test Table_pull"(FALSE);
 SELECT "User Data"."Test Table_Out Group_move"();
+UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key)."Test Table Key" = 1;
 UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key)."Test Table Key" = 1;
 SELECT "User Data"."Test Table_Out Group_processed"();
 

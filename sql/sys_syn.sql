@@ -684,6 +684,25 @@ VALUES ('sys_syn-mssql',        100,            '{datetime2_infinity}', 'timesta
                 $$THEN '9999-12-31 23:59:59.9999999'::timestamp without time zone ELSE %1 END$$,
         NULL,   NULL,                   FALSE);
 
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,              data_type_like, relation_name_like,
+        column_name_like,       new_data_type,          new_column_name,
+        expression)
+VALUES ('sys_syn-informix',     100,            '{date_infinity}',      'date',         null,
+        null,                   null,                   null,
+     $$CASE WHEN %1 <= '0001-01-01'::DATE THEN '-infinity'::DATE WHEN %1 >= '9999-12-31'::DATE THEN 'infinity'::DATE ELSE %1 END$$);
+
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,              data_type_like,                 relation_name_like,
+        column_name_like,       new_data_type,          new_column_name,
+        expression)
+VALUES ('sys_syn-informix',     100,            '{timestamp_infinity}', 'timestamp without time zone',  null,
+        null,                   null,                   null,
+        $$CASE WHEN %1 <= '0001-01-01 00:00:00'::timestamp without time zone $$ ||
+                $$THEN '-infinity'::timestamp without time zone $$ ||
+                $$WHEN %1 >= '9999-12-31 23:59:59.99999'::timestamp without time zone $$ ||
+                $$THEN 'infinity'::timestamp without time zone ELSE %1 END$$);
+
 CREATE OR REPLACE FUNCTION sys_syn.in_column_transforms_check_new() RETURNS TRIGGER AS $$
 BEGIN
         IF NEW.rule_group_id LIKE 'sys_syn%' THEN
@@ -1844,12 +1863,11 @@ BEGIN
         UNION ALL
         SELECT  *
         FROM    (
-                        VALUES  ('sys_syn_in_queue',-128,NULL::smallint,'sys_syn_trans_id_in',          'trans_id_in'),
-                                ('sys_syn_in_queue',-127,NULL,          'sys_syn_delta_type',           'delta_type'),
-                                ('sys_syn_in_queue',-126,NULL,          'sys_syn_queue_state',          'queue_state'),
-                                ('sys_syn_in_queue',-125,NULL,          'sys_syn_queue_id',             'queue_id'),
-                                ('sys_syn_in_queue',-124,NULL,          'sys_syn_queue_priority',       'queue_priority'),
-                                ('sys_syn_in_queue',-123,NULL,          'sys_syn_reading_key',          'ctid'),
+                        VALUES  ('sys_syn_in_queue',-127,NULL::smallint,'sys_syn_trans_id_in',          'trans_id_in'),
+                                ('sys_syn_in_queue',-126,NULL,          'sys_syn_delta_type',           'delta_type'),
+                                ('sys_syn_in_queue',-125,NULL,          'sys_syn_queue_state',          'queue_state'),
+                                ('sys_syn_in_queue',-124,NULL,          'sys_syn_queue_id',             'queue_id'),
+                                ('sys_syn_in_queue',-123,NULL,          'sys_syn_queue_priority',       'queue_priority'),
                                 ('sys_syn_in_queue',-122,NULL,          'sys_syn_hold_updated',         'hold_updated'),
                                 ('sys_syn_in_queue',-121,NULL,          'sys_syn_hold_trans_id_first',  'hold_trans_id_first'),
                                 ('sys_syn_in_queue',-120,NULL,          'sys_syn_hold_trans_id_last',   'hold_trans_id_last'),
@@ -2334,13 +2352,13 @@ $$;
 
         IF data_view THEN
             _sql_buffer := 'CREATE UNLOGGED TABLE '||_sql_name_table_queue_bulk||$$ (
-        reading_key     tid NOT NULL,
+        key             $$||_sql_name_type_in_key||$$ NOT NULL,
         hold_reason_id  integer,
         hold_reason_text text,
         queue_id        smallint,
         queue_priority  smallint,
         processed_time  timestamp with time zone,
-        PRIMARY KEY (reading_key)
+        PRIMARY KEY (key)
 );
 $$;
             RAISE DEBUG '%', _sql_buffer;
@@ -3548,7 +3566,6 @@ SELECT  ';
         out_queue.queue_state           AS sys_syn_queue_state,
         out_queue.queue_id              AS sys_syn_queue_id,
         out_queue.queue_priority        AS sys_syn_queue_priority,
-        out_queue.ctid                  AS sys_syn_reading_key,
         out_queue.hold_updated          AS sys_syn_hold_updated,
         out_queue.hold_trans_id_first   AS sys_syn_hold_trans_id_first,
         out_queue.hold_trans_id_last    AS sys_syn_hold_trans_id_last,
@@ -3984,7 +4001,8 @@ $$;
         $$ || sys_syn.util_out_tables_orphaned_code(out_table_def) || $$IF NOT _out_table_def.enable_adds THEN
                 TRUNCATE $$||_out_table_orphaned_ident||$$;
         END IF;
--- Keep locked records out of the queue for now.
+
+        -- Keep locked records out of the queue for now.
 
         INSERT INTO $$||_out_table_locked_ident||$$
         SELECT  *
@@ -4074,7 +4092,10 @@ $$;
                 WHERE   in_temp.trans_id_in     = out_temp.trans_id_in AND
                         in_temp.key             = out_temp.key AND
                         -- Test if the composite itself is NULL, not any of the values inside of it.
-                        ROW(ROW(in_temp.attributes)) IS NULL AND
+                        CASE ROW(NULL,ROW(NULL,NULL)) IS NULL -- Is before commit 4452000f310b8c1c947ee724618c1bc31ed20242?
+                                WHEN TRUE THEN ROW(ROW(in_temp.attributes)) IS NULL
+                                ELSE ROW(in_temp.attributes) IS NULL
+                        END AND
                         EXISTS (
                                 SELECT
                                 FROM    $$||_out_table_baseline_ident||$$ AS out_baseline
@@ -4134,7 +4155,10 @@ $$;
                         in_baseline.trans_id_in = out_baseline.trans_id_in AND
                         in_baseline.key         = out_baseline.key AND
                         -- Test if the composite itself is not NULL, not any of the values inside of it.
-                        ROW(ROW(in_temp.attributes)) IS NOT NULL AND
+                        CASE ROW(NULL,ROW(NULL,NULL)) IS NULL -- Is before commit 4452000f310b8c1c947ee724618c1bc31ed20242?
+                                WHEN TRUE THEN ROW(ROW(in_temp.attributes)) IS NOT NULL
+                                ELSE ROW(in_temp.attributes) IS NOT NULL
+                        END AND
                         $$||sys_syn.util_record_comparison_code('in_temp','in_baseline',out_table_def,true)||$$;
                 IF FOUND THEN _possible_changes := TRUE; END IF;
         END IF;
@@ -4344,8 +4368,14 @@ BEGIN
                                 'ith a non-NULL value.';
                 END IF;
 
+                IF old.queue_state != 'Reading'::sys_syn.queue_state THEN
+                    RAISE EXCEPTION 'A record cannot be put on hold before it is read.'
+                            USING HINT = 'Set the queue_state to Reading first, SELECT the data after that, then set the queue_st'||
+                                'ate to Hold';
+                END IF;
+
                 IF new.hold_trans_id_first IS NULL THEN
-                        new.hold_trans_id_first := sys_syn.trans_id_get();
+                        new.hold_trans_id_first := new.trans_id_out;
                         new.hold_reason_count   := 1;
                 ELSE
                         IF      new.hold_reason_id      IS DISTINCT FROM old.hold_reason_id OR
@@ -4356,12 +4386,21 @@ BEGIN
                         END IF;
                 END IF;
 
-                new.hold_trans_id_last := sys_syn.trans_id_get();
+                new.hold_trans_id_last := new.trans_id_out;
+
+        ELSIF   new.queue_state = 'Reading'::sys_syn.queue_state AND
+                new.queue_state IS DISTINCT FROM old.queue_state THEN
+
+                new.trans_id_out := sys_syn.trans_id_get();
 
         ELSIF   new.queue_state = 'Processed'::sys_syn.queue_state AND
                 new.queue_state IS DISTINCT FROM old.queue_state THEN
 
-                new.trans_id_out := sys_syn.trans_id_get();
+                IF old.queue_state != 'Reading'::sys_syn.queue_state THEN
+                    RAISE EXCEPTION 'A record cannot be processed before it is read.'
+                            USING HINT = 'Set the queue_state to Reading first, SELECT the data after that, then set the queue_st'||
+                                'ate to Processed.';
+                END IF;
 
                 IF new.processed_time IS NULL THEN
                         new.processed_time := clock_timestamp();
@@ -4485,15 +4524,11 @@ BEGIN
                 NOT EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.ctid = out_queue_bulk.reading_key
+                        WHERE   out_queue.key = out_queue_bulk.key
                 );
         IF FOUND THEN
-                -- If this could be completely the caller's fault, then this would be an EXCEPTION, but since updates to the
-                -- Reading record (which should not be permitted) are possible, ignore the invalid reading_id and let the queue try
-                -- to process the record again with a fresh reading_id.
-                RAISE NOTICE '1 or more reading_keys were not found.'
-                        USING HINT = 'Make sure that references to reading_keys are removed after the queue table has been update'||
-                            'd.  Also, ensure that nothing else has modified the queue records that this process was reading.';
+                RAISE EXCEPTION '1 or more keys were not found.'
+                USING HINT = 'Make sure that references to keys are removed after the queue table has been updated.';
         END IF;
 
         WITH updating_records AS (
@@ -4511,7 +4546,7 @@ BEGIN
                 queue_priority = updating_records.queue_priority,
                 processed_time = updating_records.processed_time
         FROM    updating_records
-        WHERE   out_queue.ctid = updating_records.reading_key;
+        WHERE   out_queue.key = updating_records.key;
 
         RETURN FOUND;
 END;
@@ -5031,8 +5066,17 @@ BEGIN
                                 NOT pg_attribute.attisdropped AND
                                 pg_attribute.attnum = ANY(pg_index.indkey)
                 );
+
+                IF _sql_key_columns IS NULL THEN
+                        RAISE EXCEPTION 'The relation "%" has no primary key and key_columns is null.',
+                                pre_pull_add_sql.relation::text
+                        USING HINT = 'Specify the key columns in the key_columns parameter or set a primary key on the relation.';
+                END IF;
         ELSE
-                _sql_key_columns := 'ARRAY[' || array_to_string(array_agg(quote_literal(key_columns), ',')) || ']';
+                _sql_key_columns := (
+                        SELECT  'ARRAY[' || array_to_string(array_agg(quote_literal(columns_array.*)), ',') || ']'
+                        FROM    unnest(pre_pull_add_sql.key_columns) AS columns_array
+                );
         END IF;
 
         _name_unlogged_full := quote_ident(_name_schema) || '.' || quote_ident(_full_prepull_id || '_prepull_full');
@@ -5721,6 +5765,7 @@ END
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
+ALTER FUNCTION sys_syn.util_out_queue_data_view_columns_format(text, text, sys_syn.in_column_type, text) OWNER TO postgres;
 
 
 CREATE VIEW sys_syn.in_foreign_keys_view AS

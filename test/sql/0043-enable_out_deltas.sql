@@ -57,6 +57,7 @@ SELECT  out_queue.key,  out_queue.delta_type,   out_queue.queue_state,
 FROM    user_data.test_table_out_queue out_queue
         LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, key);
 
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key IN (1, 2);
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key IN (1, 2);
 SELECT user_data.test_table_out_processed();
 
@@ -91,6 +92,7 @@ SELECT  out_queue.key,  out_queue.delta_type,   out_queue.queue_state,
 FROM    user_data.test_table_out_queue out_queue
         LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, key);
 
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 SELECT user_data.test_table_out_processed();
 
@@ -119,6 +121,7 @@ SELECT  out_queue.key,  out_queue.delta_type,   out_queue.queue_state,
 FROM    user_data.test_table_out_queue out_queue
         LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, key);
 
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key = 2;
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 2;
 SELECT user_data.test_table_out_processed();
 

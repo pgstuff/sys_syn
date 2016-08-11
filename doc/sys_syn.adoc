@@ -1,0 +1,415 @@
+:toc:
+:toclevels: 4
+
+
+
+= sys_syn
+
+
+
+== Description
+
+An asynchronous, loosely coupled, one-to-many system replication kit.
+
+
+
+== Synopsis
+
+`sys_syn` synchronizes objects from one system to one or more systems.  As systems have different DDL for similar objects, `sys_syn` provides transformations at various stages.  There are simple built-in rules that normalize data by database server software data type limitations.  This happens before and after synchronization to match the source and destination server's data type limitations, respectively.  Custom rules may be added and applied to handle similar conventions in the source and destination application systems.  More complex transformation is performed by procedures that read the changeset queue table.
+
+`sys_syn` is intended to operate between different database software.  The source database may be accessed via foreign data wrappers (FDWs).  The destination database can query the queue table via a view that provides compatibility with non-PostgreSQL database server software.
+
+The workflow is:
+
+. An optional prepull operation fetches data from a specified group of tables before the next steps are run.
+. Pull or push (full tables or a subset of whole objects).  The pull runs the input transformations.
+. Create a changeset based on the last successfully processed objects.
+.. If this is a full dataset, there is an option to add objects that are missing from the full dataset and were processed.  This is used to indicate the removal of objects.
+. The queue processor claims the changeset that it is currently available to it.
+. The queue processor accesses the claimed records via an optional view.  The view contains output transformations.
+. The queue processor updates the queue with a per object success or fail status.
+. The baseline is updated with the successful records so that future changesets can be generated.
+
+TIP:  If there are multiple destination systems, a single pull or push operation can supply data to multiple destination systems.  Each destination system will have its own changeset.  The `attributes` and `no_diff` columns are stored in a versioned record that is shared between multiple outputs for storage optimization and performance.
+
+If foreign keys are specified, then the changeset omits objects whose parent objects have never been successfully processed by the destination system.
+
+If a new object update cannot be published in the queue because a processor has claimed the record, or an object has been withheld from the queue because all of its parent objects have not been processed, the `move` function will add the object to the queue when these conditions have cleared without the need for a subsequent pull operation.
+
+The queue table allows for concurrent batching and robust error workflows.
+
+This workflow is run by executing generated stored procedures.  There are functions to generate lines for crontab or inserting jobs into pgAgent if you want to run these procedures automatically via either of those technologies.  You may also push rows and call the procedures manually for an event driven workflow.
+
+
+
+== User guide
+
+
+
+=== Requirements
+
+Usage requirements:
+
+- PostgreSQL 9.5 or above.
+
+Test requirements:
+
+- The `tinyint` PostgreSQL extension.
+
+Documentation requirements:
+
+- `asciidoc`
+
+
+
+=== Installation
+
+
+
+==== Per Server Installation
+
+[source,shell]
+----
+sudo PATH=$PATH make clean && sudo PATH=$PATH make install && make installcheck
+----
+
+
+
+==== Per Database Installation
+
+You only need to run this on the database(s) that will run `sys_syn`.
+
+[source,sql]
+----
+CREATE EXTENSION sys_syn;
+----
+
+
+
+=== Usage
+
+
+
+==== Setup
+
+
+
+===== Example Schema & Data
+
+The following examples assume the following schema and data:
+
+[source,sql]
+----
+CREATE SCHEMA user_data
+    AUTHORIZATION postgres;
+
+CREATE TABLE user_data.test_table (
+        test_table_key integer NOT NULL,
+        test_table_text text,
+        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key));
+
+INSERT INTO user_data.test_table(
+        test_table_key, test_table_text)
+VALUES (1,              'test_data1');
+
+INSERT INTO user_data.test_table(
+        test_table_key, test_table_text)
+VALUES (2,              'test_data2');
+----
+
+
+
+===== Add an Input Group
+
+An input group identifies the source system or application.  You may associate custom transformation rules to an input group.  You can have a hierarchy of input groups if you want multiple levels of transformation rules.  Specify the parent's `in_group_id` in the `parent_in_group_id` column of a child input group.  The child input group will inherent the rules of its ancestors.
+
+[source,sql]
+----
+INSERT INTO sys_syn.in_groups_def VALUES ('in');
+----
+
+
+
+===== Add an Input Table
+
+You may add an input table immediately using:
+
+[source,sql]
+----
+EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+----
+
+IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key by adding "`, key_columns => ARRAY['key_col_name_here']`" to the `sys_syn.in_table_add_sql` function call.
+
+You can also generate the function call to add the table by specifying just the table and `in_group`.
+
+[source,sql]
+----
+SELECT sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+----
+
+Copy the resulting text into your SQL editor, make adjustments, and execute it.
+
+[source,sql]
+----
+SELECT sys_syn.in_table_add (
+        schema          => 'user_data'::regnamespace,
+        in_table_id     => 'test_table',
+        in_group_id     => 'in',
+        in_pull_id      => NULL,
+        in_columns      => ARRAY[
+                $COL$("test_table_key","integer",Key,"in_source.test_table_key",,,,)$COL$,
+                $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
+        ]::sys_syn.create_in_column[],
+        full_table_reference    => 'user_data.test_table',
+        changes_table_reference => NULL,
+        full_sql                => NULL,
+        changes_sql             => NULL,
+        full_pre_sql            => NULL,
+        changes_pre_sql         => NULL,
+        full_post_sql           => NULL,
+        changes_post_sql        => NULL,
+        enable_deletes_implied  => TRUE,
+        full_prepull_id         => NULL,
+        changes_prepull_id      => NULL
+);
+----
+
+
+
+===== Add an Output Group
+
+An output group identifies the destination system or application.  You may associate custom transformation rules to an output group.  You can have a hierarchy of output groups if you want multiple levels of transformation rules.  Specify the parent's `out_group_id` in the `parent_out_group_id` column of a child output group.  The child output group will inherent the rules of its ancestors.
+
+
+
+===== Add an Output Table
+
+You may add an output table immediately using:
+
+[source,sql]
+----
+SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+----
+
+The arguments are:
+
+. Schema name
+. Table name
+. Out group ID
+
+If you want to change the advanced parameters or manually review or edit the transformations, run:
+
+[source,sql]
+----
+SELECT sys_syn.out_table_add_sql('user_data', 'test_table', 'out');
+----
+
+Copy the resulting text into your SQL editor, make adjustments, and execute it.
+
+[source,sql]
+----
+SELECT sys_syn.out_table_add (
+        schema                  => 'user_data'::regnamespace,
+        in_table_id             => 'test_table',
+        out_group_id            => 'out',
+        out_columns             => ARRAY[
+                $COL$("sys_syn_trans_id_in","out_queue.trans_id_in",,)$COL$,
+                $COL$("sys_syn_delta_type","out_queue.delta_type",,)$COL$,
+                $COL$("sys_syn_queue_state","out_queue.queue_state",queue_state,"new.sys_syn_queue_state")$COL$,
+                $COL$("sys_syn_queue_id","out_queue.queue_id",queue_id,"new.sys_syn_queue_id")$COL$,
+                $COL$("sys_syn_queue_priority","out_queue.queue_priority",queue_priority,"new.sys_syn_queue_priority")$COL$,
+                $COL$("sys_syn_reading_key","out_queue.ctid",,)$COL$,
+                $COL$("sys_syn_hold_updated","out_queue.hold_updated",,)$COL$,
+                $COL$("sys_syn_hold_trans_id_first","out_queue.hold_trans_id_first",,)$COL$,
+                $COL$("sys_syn_hold_trans_id_last","out_queue.hold_trans_id_last",,)$COL$,
+                $COL$("sys_syn_hold_reason_count","out_queue.hold_reason_count",,)$COL$,
+                $COL$("sys_syn_hold_reason_id","out_queue.hold_reason_id",hold_reason_id,"new.sys_syn_hold_reason_id")$COL$,
+                $COL$("sys_syn_hold_reason_text","out_queue.hold_reason_text",hold_reason_text,"new.sys_syn_hold_reason_text")$COL$,
+                $COL$("sys_syn_trans_id_out","out_queue.trans_id_out",,)$COL$,
+                $COL$("sys_syn_processed_time","out_queue.processed_time",processed_time,"new.sys_syn_processed_time")$COL$,
+                $COL$("test_table_key","(in_source.key).test_table_key",,)$COL$,
+                $COL$("test_table_text","(in_source.attributes).test_table_text",,)$COL$
+        ]::sys_syn.create_out_column[],
+        data_view               => 'false',
+        out_log_lifetime        => NULL,
+        notification_channel    => NULL,
+        enable_adds             => 'true',
+        enable_changes          => 'true',
+        enable_deletes          => 'true',
+        condition_sql           => NULL,
+        claim_limit_rows        => '2147483647',
+        claim_queue_count       => NULL,
+        claim_fixed_by_key      => 'false',
+        claim_random_sample     => NULL,
+        queue_pid_used_age      => NULL,
+        record_comparison_different=> NULL,
+        record_comparison_same     => NULL
+);
+----
+
+
+
+==== Runtime Implementation
+
+
+
+===== Pull Data
+
+Pull the data from the source system using:
+
+[source,sql]
+----
+SELECT user_data.test_table_pull(FALSE);
+----
+
+A boolean is returned.  False indicates that there are no records to process and that the following steps do not need to be run at this time.  True indicates that the following steps are ready to run.
+
+
+
+===== Refresh the Output Queue
+
+Refresh the changeset queue by calling the output group's move function:
+
+[source,sql]
+----
+SELECT user_data.test_table_out_move();
+----
+
+A boolean is returned.  False indicates that there are no records to process and that the following steps do not need to be run at this time.  True indicates that the following steps are ready to run.
+
+IMPORTANT:  The `move` function must be run in a transaction that is separate from the `pull` and `processed` functions.
+
+
+
+===== Process the Output Queue
+
+First, claim the `Unread` records in the queue for processing by setting the `sys_syn_queue_state` to the `Reading` status.
+
+[source,sql]
+----
+UPDATE  user_data.test_table_out_queue_data
+SET     sys_syn_queue_state = 'Reading'::sys_syn.queue_state
+WHERE   sys_syn_queue_state = 'Unread'::sys_syn.queue_state;
+----
+
+Next, read only the records that have the `Reading` status.
+
+[source,sql]
+----
+SELECT  *
+FROM    user_data.test_table_out_queue_data
+WHERE   sys_syn_queue_state = 'Reading'::sys_syn.queue_state;
+----
+
+Process the records in your destination system.  For records that were processed successfully, set their `sys_syn_queue_state` to `Processed`.
+
+If records failed to process, set their status to `Hold` or `Unread`.  The `Hold` status allows you to process failed records at less frequent intervals.  The `Hold` status requires that you set `hold_reason_id` and/or `hold_reason_text`.
+
+TIP:  If you update the `sys_syn` columns via the data_view, then you need to add `sys_syn_` in front of each `sys_syn` column's name.
+
+[source,sql]
+----
+UPDATE  user_data.test_table_out_queue_data
+SET     sys_syn_queue_state = 'Processed'::sys_syn.queue_state
+WHERE   test_table_key = 1;
+
+UPDATE  user_data.test_table_out_queue_data
+SET     sys_syn_queue_state = 'Hold'::sys_syn.queue_state,
+        sys_syn_hold_reason_text = 'This object has been put on hold for an example.'
+WHERE   test_table_key = 2;
+----
+
+
+
+===== Commit the Processing Statuses
+
+Updating the `sys_syn_queue_state` does not automatically commit the processing status.  Call the output's `processed` function to commit the processed changes.  This removes processed records from the queue table and commits them into baseline status so that future changesets only contain actual changes.
+
+[source,sql]
+----
+SELECT user_data.test_table_out_processed();
+----
+
+A boolean is returned.  False indicates that there was nothing to do.  True indicates that the queue state was changed.
+
+
+
+===== Error Handling
+
+If you use the `Hold` status, then you must set the `Hold` status back to `Unread` when you want to retry those records.  The `hold_reason_count` value is incremented if the error is the same error that was recorded in the prior processing attempt.  This allows you to implement a backoff algorithm to avoid wasting resources on a potentially non-transient failure.
+
+If the object changes value while in the `Hold` status, then its queue status is automatically reset to `Unread`.  This allows data corrections to be retried without a `Hold` delay.
+
+
+
+=== Testing Performance Enhancement
+
+Optionally, you can initialize a database server in shared memory to avoid disk I/O.
+
+
+
+==== Initialize In Memory Server
+
+[source,shell]
+----
+export PGDATA=/dev/shm/$USER-pg_regression_test
+mkdir "$PGDATA"
+initdb --auth-local=peer --auth-host=ident -U postgres -N "$PGDATA"
+cat <<"EOF" >> "$PGDATA/postgresql.conf"
+fsync = off
+synchronous_commit = off
+full_page_writes = off
+random_page_cost = 1.0
+EOF
+echo "CREATE ROLE $USER SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN" | postmaster --single -D "$PGDATA" -F -h "" -k "$PGDATA" postgres && echo
+postmaster -D "$PGDATA" -F -h "" -k "$PGDATA" & sleep 2; echo
+export PGHOST=$PGDATA
+----
+
+IMPORTANT:  Every program launched in this terminal will point to this in memory instance.  Be careful not to accidentally put non-ephemeral data or code there.
+
+IMPORTANT:  Remember that everything created in this database will disappear after a reboot, shutdown, or server crash.
+
+
+
+==== Run Tests
+
+[source,shell]
+----
+sudo PATH=$PATH make clean && sudo PATH=$PATH make install && make installcheck
+----
+
+
+
+==== Shutdown & Delete In Memory Server
+
+The following commands will shutdown the server and permanently delete all of the data that was created within that server.
+
+[source,shell]
+----
+fg 1
+----
+
+Hold Ctrl and press C.
+
+[source,shell]
+----
+rm -Rf "/dev/shm/$USER-pg_regression_test"
+unset PGDATA
+unset PGHOST
+----
+
+
+
+=== More Examples
+
+See the `test` directory for more examples.
+
+
+
+== Copyright and License
+
+Copyright (c) 2016.
+
+`sys_syn` copyright is novated to PostgreSQL Global Development Group.

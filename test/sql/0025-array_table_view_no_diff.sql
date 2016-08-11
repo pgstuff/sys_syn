@@ -51,6 +51,8 @@ SELECT * FROM user_data.test_table_out_queue_data;
 
 SELECT user_data.test_table_vacuum();
 
+UPDATE user_data.test_table_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_table_key = 1;
+
 UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_table_key = 1;
 
 SELECT user_data.test_table_out_processed();

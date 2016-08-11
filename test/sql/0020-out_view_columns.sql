@@ -40,6 +40,8 @@ SELECT user_data.test_table_out_move();
 
 SELECT * FROM user_data.test_table_out_queue_data;
 
+UPDATE user_data.test_table_out_queue_data SET processing_state = 2 WHERE test_table_key = 1;
+
 UPDATE user_data.test_table_out_queue_data SET processing_state = 3 WHERE test_table_key = 1;
 
 SELECT user_data.test_table_out_processed();

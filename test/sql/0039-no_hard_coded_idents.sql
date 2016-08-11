@@ -28,6 +28,7 @@ SELECT sys_syn.out_table_add('public', 'test_data', 'out');
 
 SELECT public.test_data_pull(FALSE);
 SELECT public.test_data_out_move();
+UPDATE public.test_data_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).test_data_key = 1;
 UPDATE public.test_data_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).test_data_key = 1;
 SELECT public.test_data_out_processed();
 
