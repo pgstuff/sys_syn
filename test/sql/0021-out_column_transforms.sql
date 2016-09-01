@@ -9,11 +9,11 @@ CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
 CREATE TABLE user_data.test_table (
-        test_table_key integer NOT NULL,
+        test_table_id integer NOT NULL,
         test_table_text text,
         test_table_date date,
         test_table_datetime timestamp with time zone,
-        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key));
+        CONSTRAINT test_table_pid PRIMARY KEY (test_table_id));
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
@@ -24,13 +24,13 @@ DO $$BEGIN
 END$$;
 
 INSERT INTO user_data.test_table (
-        test_table_key, test_table_text,        test_table_date,        test_table_datetime)
+        test_table_id, test_table_text,        test_table_date,        test_table_datetime)
 VALUES (1,              'test_record_1',        '2010-01-02',           '2013-04-05 06:07:08-00');
 INSERT INTO user_data.test_table (
-        test_table_key, test_table_text,        test_table_date,        test_table_datetime)
+        test_table_id, test_table_text,        test_table_date,        test_table_datetime)
 VALUES (2,              '',                     'infinity'::DATE,       'infinity'::timestamp);
 INSERT INTO user_data.test_table (
-        test_table_key, test_table_text,        test_table_date,        test_table_datetime)
+        test_table_id, test_table_text,        test_table_date,        test_table_datetime)
 VALUES (3,              NULL,                   '-infinity'::DATE,      '-infinity'::timestamp);
 
 INSERT INTO sys_syn.out_column_transforms(
@@ -78,9 +78,9 @@ SELECT user_data.test_table_out_move();
 
 SELECT * FROM user_data.test_table_out_queue_data;
 
-UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Reading'::sys_syn.queue_state WHERE test_table_key = 1;
+UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Claimed'::sys_syn.queue_state WHERE test_table_id = 1;
 
-UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Processed'::sys_syn.queue_state WHERE test_table_key = 1;
+UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Processed'::sys_syn.queue_state WHERE test_table_id = 1;
 
 SELECT user_data.test_table_out_processed();
 

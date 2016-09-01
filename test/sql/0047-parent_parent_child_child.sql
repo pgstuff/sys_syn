@@ -9,25 +9,25 @@ CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
 CREATE TABLE user_data.parent_1 (
-        parent_1_key integer NOT NULL,
+        parent_1_id integer NOT NULL,
         parent_1_text text,
-        CONSTRAINT parent_1_pkey PRIMARY KEY (parent_1_key));
+        CONSTRAINT parent_1_pid PRIMARY KEY (parent_1_id));
 
 CREATE TABLE user_data.parent_2 (
-        parent_2_key integer NOT NULL,
+        parent_2_id integer NOT NULL,
         parent_2_text text,
-        CONSTRAINT parent_2_pkey PRIMARY KEY (parent_2_key));
+        CONSTRAINT parent_2_pid PRIMARY KEY (parent_2_id));
 
 CREATE TABLE user_data.child_1 (
-        child_1_key integer NOT NULL,
-        parent_1_key integer,
-        CONSTRAINT child_1_pkey PRIMARY KEY (child_1_key));
+        child_1_id integer NOT NULL,
+        parent_1_id integer,
+        CONSTRAINT child_1_pid PRIMARY KEY (child_1_id));
 
 CREATE TABLE user_data.child_2 (
-        child_2_key integer NOT NULL,
-        parent_1_key integer,
-        parent_2_key integer,
-        CONSTRAINT child_2_pkey PRIMARY KEY (child_2_key));
+        child_2_id integer NOT NULL,
+        parent_1_id integer,
+        parent_2_id integer,
+        CONSTRAINT child_2_pid PRIMARY KEY (child_2_id));
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
@@ -42,8 +42,8 @@ SELECT sys_syn.in_table_add (
                 in_group_id     => 'in',
                 in_pull_id      => NULL,
                 in_columns      => ARRAY[
-                       $COL$("child_1_key","integer",Key,"in_source.child_1_key",,,,)$COL$,
-                       $COL$("parent_1_key","integer",Attribute,"in_source.parent_1_key",,1,"parent_1","parent_1_key")$COL$
+                       $COL$("child_1_id","integer",ID,"in_source.child_1_id",,,,)$COL$,
+                       $COL$("parent_1_id","integer",Attribute,"in_source.parent_1_id",,1,"parent_1","parent_1_id")$COL$
                 ]::sys_syn.create_in_column[],
                 full_table_reference    => 'user_data.child_1'
         );
@@ -54,27 +54,27 @@ SELECT sys_syn.in_table_add (
                 in_group_id     => 'in',
                 in_pull_id      => NULL,
                 in_columns      => ARRAY[
-                       $COL$("child_2_key","integer",Key,"in_source.child_2_key",,,,)$COL$,
-                       $COL$("parent_1_key","integer",Attribute,"in_source.parent_1_key",,1,"parent_1","parent_1_key")$COL$,
-                       $COL$("parent_2_key","integer",Attribute,"in_source.parent_2_key",,2,"parent_2","parent_2_key")$COL$
+                       $COL$("child_2_id","integer",ID,"in_source.child_2_id",,,,)$COL$,
+                       $COL$("parent_1_id","integer",Attribute,"in_source.parent_1_id",,1,"parent_1","parent_1_id")$COL$,
+                       $COL$("parent_2_id","integer",Attribute,"in_source.parent_2_id",,2,"parent_2","parent_2_id")$COL$
                 ]::sys_syn.create_in_column[],
                 full_table_reference    => 'user_data.child_2'
         );
 
 INSERT INTO user_data.parent_1 (
-        parent_1_key,   parent_1_text)
+        parent_1_id,   parent_1_text)
 VALUES (1,              'parent_1_data');
 
 INSERT INTO user_data.parent_2 (
-        parent_2_key,   parent_2_text)
+        parent_2_id,   parent_2_text)
 VALUES (2,              'parent_2_data');
 
 INSERT INTO user_data.child_1 (
-        child_1_key,    parent_1_key)
+        child_1_id,    parent_1_id)
 VALUES (3,              1);
 
 INSERT INTO user_data.child_2 (
-        child_2_key,    parent_1_key,   parent_2_key)
+        child_2_id,    parent_1_id,   parent_2_id)
 VALUES (4,              1,              2);
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
@@ -88,68 +88,68 @@ SELECT sys_syn.out_table_add('user_data', 'child_1', 'out');
 SELECT sys_syn.out_table_add('user_data', 'child_2', 'out');
 
 ALTER TABLE user_data.parent_1_out_queue
-  ADD FOREIGN KEY (trans_id_in, key) REFERENCES user_data.parent_1_in (trans_id_in, key) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.parent_1_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 SELECT user_data.parent_1_pull(FALSE);
 SELECT user_data.parent_1_out_move();
-SELECT key, delta_type, queue_state FROM user_data.parent_1_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.parent_1_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_1_pull(FALSE);
 SELECT user_data.child_1_out_move();
-SELECT key, delta_type, queue_state FROM user_data.child_1_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_1_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
-SELECT key, delta_type, queue_state FROM user_data.child_2_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
 
-UPDATE user_data.parent_1_out_queue SET queue_state = 'Reading'::sys_syn.queue_state, hold_reason_text = 'Testing parent-child dependency.' WHERE (key).parent_1_key = 1;
-UPDATE user_data.parent_1_out_queue SET queue_state = 'Hold'::sys_syn.queue_state, hold_reason_text = 'Testing parent-child dependency.' WHERE (key).parent_1_key = 1;
+UPDATE user_data.parent_1_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state, hold_reason_text = 'Testing parent-child dependency.' WHERE (id).parent_1_id = 1;
+UPDATE user_data.parent_1_out_queue SET queue_state = 'Hold'::sys_syn.queue_state, hold_reason_text = 'Testing parent-child dependency.' WHERE (id).parent_1_id = 1;
 SELECT user_data.parent_1_out_processed();
-SELECT key, delta_type, queue_state FROM user_data.parent_1_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.parent_1_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_1_pull(FALSE);
 SELECT user_data.child_1_out_move();
-SELECT key, delta_type, queue_state FROM user_data.child_1_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_1_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
-SELECT key, delta_type, queue_state FROM user_data.child_2_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
 
-UPDATE user_data.parent_1_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).parent_1_key = 1;
-UPDATE user_data.parent_1_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).parent_1_key = 1;
+UPDATE user_data.parent_1_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).parent_1_id = 1;
+UPDATE user_data.parent_1_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).parent_1_id = 1;
 SELECT user_data.parent_1_out_processed();
-SELECT key, delta_type, queue_state FROM user_data.parent_1_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.parent_1_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_1_pull(FALSE);
 SELECT user_data.child_1_out_move();
-SELECT key, delta_type, queue_state FROM user_data.child_1_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_1_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
-SELECT key, delta_type, queue_state FROM user_data.child_2_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.parent_2_pull(FALSE);
 SELECT user_data.parent_2_out_move();
-SELECT key, delta_type, queue_state FROM user_data.parent_2_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.parent_2_out_queue;
 
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
-SELECT key, delta_type, queue_state FROM user_data.child_2_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
 
-UPDATE user_data.parent_2_out_queue SET queue_state = 'Reading'::sys_syn.queue_state WHERE (key).parent_2_key = 2;
-UPDATE user_data.parent_2_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (key).parent_2_key = 2;
+UPDATE user_data.parent_2_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).parent_2_id = 2;
+UPDATE user_data.parent_2_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).parent_2_id = 2;
 SELECT user_data.parent_2_out_processed();
-SELECT key, delta_type, queue_state FROM user_data.parent_2_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.parent_2_out_queue;
 
 SELECT user_data.child_2_out_foreign_processed();
-SELECT key, delta_type, queue_state FROM user_data.child_2_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
 
 ROLLBACK;

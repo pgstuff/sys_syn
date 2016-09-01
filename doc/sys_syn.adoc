@@ -34,7 +34,7 @@ TIP:  If there are multiple destination systems, a single pull or push operation
 
 If foreign keys are specified, then the changeset omits objects whose parent objects have never been successfully processed by the destination system.
 
-If a new object update cannot be published in the queue because a processor has claimed the record, or an object has been withheld from the queue because all of its parent objects have not been processed, the `move` function will add the object to the queue when these conditions have cleared without the need for a subsequent pull operation.
+If a new object update cannot be published in the queue because a processor has claimed the object, or an object has been withheld from the queue because all of its parent objects have not been processed, the `move` function will add the object to the queue when these conditions have cleared without the need for a subsequent pull operation.
 
 The queue table allows for concurrent batching and robust error workflows.
 
@@ -42,7 +42,7 @@ This workflow is run by executing generated stored procedures.  There are functi
 
 
 
-== User guide
+== User Guide
 
 
 
@@ -104,16 +104,16 @@ CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
 CREATE TABLE user_data.test_table (
-        test_table_key integer NOT NULL,
+        test_table_id integer NOT NULL,
         test_table_text text,
         CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key));
 
 INSERT INTO user_data.test_table(
-        test_table_key, test_table_text)
+        test_table_id, test_table_text)
 VALUES (1,              'test_data1');
 
 INSERT INTO user_data.test_table(
-        test_table_key, test_table_text)
+        test_table_id, test_table_text)
 VALUES (2,              'test_data2');
 ----
 
@@ -139,7 +139,7 @@ You may add an input table immediately using:
 EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
 ----
 
-IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key by adding "`, key_columns => ARRAY['key_col_name_here']`" to the `sys_syn.in_table_add_sql` function call.
+IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key by adding "`, id_columns => ARRAY['id_col_name_here']`" to the `sys_syn.in_table_add_sql` function call.
 
 You can also generate the function call to add the table by specifying just the table and `in_group`.
 
@@ -158,7 +158,7 @@ SELECT sys_syn.in_table_add (
         in_group_id     => 'in',
         in_pull_id      => NULL,
         in_columns      => ARRAY[
-                $COL$("test_table_key","integer",Key,"in_source.test_table_key",,,,)$COL$,
+                $COL$("test_table_id","integer",ID,"in_source.test_table_id",,,,)$COL$,
                 $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
         ]::sys_syn.create_in_column[],
         full_table_reference    => 'user_data.test_table',
@@ -219,7 +219,6 @@ SELECT sys_syn.out_table_add (
                 $COL$("sys_syn_queue_state","out_queue.queue_state",queue_state,"new.sys_syn_queue_state")$COL$,
                 $COL$("sys_syn_queue_id","out_queue.queue_id",queue_id,"new.sys_syn_queue_id")$COL$,
                 $COL$("sys_syn_queue_priority","out_queue.queue_priority",queue_priority,"new.sys_syn_queue_priority")$COL$,
-                $COL$("sys_syn_reading_key","out_queue.ctid",,)$COL$,
                 $COL$("sys_syn_hold_updated","out_queue.hold_updated",,)$COL$,
                 $COL$("sys_syn_hold_trans_id_first","out_queue.hold_trans_id_first",,)$COL$,
                 $COL$("sys_syn_hold_trans_id_last","out_queue.hold_trans_id_last",,)$COL$,
@@ -228,7 +227,7 @@ SELECT sys_syn.out_table_add (
                 $COL$("sys_syn_hold_reason_text","out_queue.hold_reason_text",hold_reason_text,"new.sys_syn_hold_reason_text")$COL$,
                 $COL$("sys_syn_trans_id_out","out_queue.trans_id_out",,)$COL$,
                 $COL$("sys_syn_processed_time","out_queue.processed_time",processed_time,"new.sys_syn_processed_time")$COL$,
-                $COL$("test_table_key","(in_source.key).test_table_key",,)$COL$,
+                $COL$("test_table_id","(in_source.id).test_table_id",,)$COL$,
                 $COL$("test_table_text","(in_source.attributes).test_table_text",,)$COL$
         ]::sys_syn.create_out_column[],
         data_view               => 'false',
@@ -240,7 +239,7 @@ SELECT sys_syn.out_table_add (
         condition_sql           => NULL,
         claim_limit_rows        => '2147483647',
         claim_queue_count       => NULL,
-        claim_fixed_by_key      => 'false',
+        claim_fixed_by_id       => 'false',
         claim_random_sample     => NULL,
         queue_pid_used_age      => NULL,
         record_comparison_different=> NULL,
@@ -284,27 +283,27 @@ IMPORTANT:  The `move` function must be run in a transaction that is separate fr
 
 ===== Process the Output Queue
 
-First, claim the `Unread` records in the queue for processing by setting the `sys_syn_queue_state` to the `Reading` status.
+First, claim the `Unclaimed` records in the queue for processing by setting the `sys_syn_queue_state` to the `Claimed` status.
 
 [source,sql]
 ----
 UPDATE  user_data.test_table_out_queue_data
-SET     sys_syn_queue_state = 'Reading'::sys_syn.queue_state
-WHERE   sys_syn_queue_state = 'Unread'::sys_syn.queue_state;
+SET     sys_syn_queue_state = 'Claimed'::sys_syn.queue_state
+WHERE   sys_syn_queue_state = 'Unclaimed'::sys_syn.queue_state;
 ----
 
-Next, read only the records that have the `Reading` status.
+Next, read only the records that have the `Claimed` status.
 
 [source,sql]
 ----
 SELECT  *
 FROM    user_data.test_table_out_queue_data
-WHERE   sys_syn_queue_state = 'Reading'::sys_syn.queue_state;
+WHERE   sys_syn_queue_state = 'Claimed'::sys_syn.queue_state;
 ----
 
 Process the records in your destination system.  For records that were processed successfully, set their `sys_syn_queue_state` to `Processed`.
 
-If records failed to process, set their status to `Hold` or `Unread`.  The `Hold` status allows you to process failed records at less frequent intervals.  The `Hold` status requires that you set `hold_reason_id` and/or `hold_reason_text`.
+If records failed to process, set their status to `Hold` or `Unclaimed`.  The `Hold` status allows you to process failed records at less frequent intervals.  The `Hold` status requires that you set `hold_reason_id` and/or `hold_reason_text`.
 
 TIP:  If you update the `sys_syn` columns via the data_view, then you need to add `sys_syn_` in front of each `sys_syn` column's name.
 
@@ -312,12 +311,12 @@ TIP:  If you update the `sys_syn` columns via the data_view, then you need to ad
 ----
 UPDATE  user_data.test_table_out_queue_data
 SET     sys_syn_queue_state = 'Processed'::sys_syn.queue_state
-WHERE   test_table_key = 1;
+WHERE   test_table_id = 1;
 
 UPDATE  user_data.test_table_out_queue_data
 SET     sys_syn_queue_state = 'Hold'::sys_syn.queue_state,
         sys_syn_hold_reason_text = 'This object has been put on hold for an example.'
-WHERE   test_table_key = 2;
+WHERE   test_table_id = 2;
 ----
 
 
@@ -337,9 +336,9 @@ A boolean is returned.  False indicates that there was nothing to do.  True indi
 
 ===== Error Handling
 
-If you use the `Hold` status, then you must set the `Hold` status back to `Unread` when you want to retry those records.  The `hold_reason_count` value is incremented if the error is the same error that was recorded in the prior processing attempt.  This allows you to implement a backoff algorithm to avoid wasting resources on a potentially non-transient failure.
+If you use the `Hold` status, then you must set the `Hold` status back to `Unclaimed` when you want to retry those records.  The `hold_reason_count` value is incremented if the error is the same error that was recorded in the prior processing attempt.  This allows you to implement a backoff algorithm to avoid wasting resources on a potentially non-transient failure.
 
-If the object changes value while in the `Hold` status, then its queue status is automatically reset to `Unread`.  This allows data corrections to be retried without a `Hold` delay.
+If the object changes value while in the `Hold` status, then its queue status is automatically reset to `Unclaimed`.  This allows data corrections to be retried without a `Hold` delay.
 
 
 
@@ -356,7 +355,7 @@ Optionally, you can initialize a database server in shared memory to avoid disk 
 export PGDATA=/dev/shm/$USER-pg_regression_test
 mkdir "$PGDATA"
 initdb --auth-local=peer --auth-host=ident -U postgres -N "$PGDATA"
-cat <<"EOF" >> "$PGDATA/postgresql.conf"
+cat << "EOF" >> "$PGDATA/postgresql.conf"
 fsync = off
 synchronous_commit = off
 full_page_writes = off
@@ -367,9 +366,11 @@ postmaster -D "$PGDATA" -F -h "" -k "$PGDATA" & sleep 2; echo
 export PGHOST=$PGDATA
 ----
 
-IMPORTANT:  Every program launched in this terminal will point to this in memory instance.  Be careful not to accidentally put non-ephemeral data or code there.
+CAUTION:  Every program launched in this terminal will point to this in memory instance.  Be careful not to accidentally put non-ephemeral data or code there.
 
-IMPORTANT:  Remember that everything created in this database will disappear after a reboot, shutdown, or server crash.
+CAUTION:  Remember that everything created in this database will disappear after a reboot, shutdown, or machine crash.
+
+TIP:  To view this instance in pgAdmin3, set the +Host+ to +/dev/shm/$USER-pg_regression_test+, replace +$USER+ with your user name (run +echo $USER+ if you do not know what it is), and leave the +Port+ number as +5432+.  Use the same user name for the +Username+ field.  When prompted for a password, leave it blank or enter any non-blank value to save it.
 
 
 
@@ -402,6 +403,43 @@ unset PGHOST
 
 
 
+=== PL/pgSQL Debugger
+
+You can use the PL/pgSQL debugger in pgAdmin3 if you build and install the following extension.  You may want to change the install directory and use a different server restart command depending on your distribution and instance.  If you have access, the `/usr/local/src` directory is a good location to store the source code.  However, you will not need it again.  If you upgrade PostgreSQL to a different major version, you will need to download a fresh copy and install it again.
+
+CAUTION:  If you already have something in `shared_preload_libraries`, then manually edit `$PGDATA/postgresql.conf` and add `$libdir/plugin_debugger` to `shared_preload_libraries` instead of running the `cat` command below.
+
+[source,shell]
+----
+cd /dev/shm
+curl -LO "http://ftp.postgresql.org/pub/source/v$(pg_config --version | cut -f 2 -d ' ')/postgresql-$(pg_config --version | cut -f 2 -d ' ').tar.bz2"
+tar -xjf postgresql-$(pg_config --version | cut -f 2 -d ' ').tar.bz2
+cd postgresql-$(pg_config --version | cut -f 2 -d ' ')
+USE_PGXS=1 ./configure
+USE_PGXS=1 make
+cd contrib
+git clone "git://git.postgresql.org/git/pldebugger.git"
+make
+cd pldebugger
+USE_PGXS=1 make
+sudo USE_PGXS=1 PATH=$PATH make install
+
+cat << "EOF" >> "$PGDATA/postgresql.conf"
+shared_preload_libraries = '$libdir/plugin_debugger'
+EOF
+
+pg_ctl restart
+----
+
+After the restart, you need to add the `pldbgapi` extension on each database that you want to use the debugger with.
+
+[source,sql]
+----
+CREATE EXTENSION pldbgapi;
+----
+
+
+
 === More Examples
 
 See the `test` directory for more examples.
@@ -411,5 +449,7 @@ See the `test` directory for more examples.
 == Copyright and License
 
 Copyright (c) 2016.
+
+Legal Notice:  See the COPYRIGHT file.
 
 `sys_syn` copyright is novated to PostgreSQL Global Development Group.

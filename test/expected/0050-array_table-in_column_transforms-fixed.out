@@ -1,21 +1,22 @@
 BEGIN;
-
 CREATE EXTENSION tinyint
     SCHEMA public;
-
 CREATE EXTENSION sys_syn;
-
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,              data_type_like,         relation_name_like,
+        column_name_like,       new_data_type,  new_column_name,        new_array_order,
+        expression)
+VALUES (null,                   300,            '{}',                   'timestamp with time zone',null,
+        '%_updated',            null,           null,                   1,
+        null);
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
-
 CREATE TABLE user_data.test_table (
         test_table_id integer NOT NULL,
         test_table_updated timestamp with time zone,
         test_table_text text,
         CONSTRAINT test_table_pid PRIMARY KEY (test_table_id, test_table_updated));
-
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
-
 SELECT sys_syn.in_table_add (
                 'user_data',
                 'test_table',
@@ -29,34 +30,38 @@ SELECT sys_syn.in_table_add (
                 'user_data.test_table',
                 NULL
         );
+ in_table_add 
+--------------
+ 
+(1 row)
 
 INSERT INTO user_data.test_table(
         test_table_id, test_table_updated,             test_table_text)
 VALUES  (1,              '2009-01-02 03:04:05-00',       'test_data v1'),
         (1,              '2010-01-02 03:04:05-00',       'test_data v2');
-
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
-
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out', data_view => TRUE);
-
-ALTER TABLE user_data.test_table_out_queue
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+ out_table_add 
+---------------
+ 
+(1 row)
 
 SELECT user_data.test_table_pull(FALSE);
+ test_table_pull 
+-----------------
+ t
+(1 row)
+
 SELECT user_data.test_table_out_move();
+ test_table_out_move 
+---------------------
+ t
+(1 row)
 
-SELECT * FROM user_data.test_table_out_queue_data;
-
-SELECT user_data.test_table_vacuum();
-
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-
-SELECT user_data.test_table_out_processed();
-
-SELECT * FROM user_data.test_table_out_queue_data;
-
-SELECT user_data.test_table_vacuum();
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+ id  | delta_type | queue_state 
+-----+------------+-------------
+ (1) | Add        | Unclaimed
+(1 row)
 
 ROLLBACK;

@@ -5,6 +5,14 @@ CREATE EXTENSION tinyint
 
 CREATE EXTENSION sys_syn;
 
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,              data_type_like,         relation_name_like,
+        column_name_like,       new_data_type,  new_column_name,        new_array_order,
+        expression)
+VALUES (null,                   300,            '{}',                   'timestamp with time zone',null,
+        '%_updated',            null,           null,                   1,
+        null);
+
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
@@ -37,26 +45,12 @@ VALUES  (1,              '2009-01-02 03:04:05-00',       'test_data v1'),
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out', data_view => TRUE);
-
-ALTER TABLE user_data.test_table_out_queue
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
 
 SELECT user_data.test_table_pull(FALSE);
+
 SELECT user_data.test_table_out_move();
 
-SELECT * FROM user_data.test_table_out_queue_data;
-
-SELECT user_data.test_table_vacuum();
-
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-
-SELECT user_data.test_table_out_processed();
-
-SELECT * FROM user_data.test_table_out_queue_data;
-
-SELECT user_data.test_table_vacuum();
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
 
 ROLLBACK;

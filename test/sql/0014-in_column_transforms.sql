@@ -9,12 +9,12 @@ CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
 CREATE TABLE user_data.test_table (
-        test_table_key integer NOT NULL,
+        test_table_id integer NOT NULL,
         test_table_text varchar(255),
         test_table_date date,
         test_table_datetime timestamp with time zone,
         test_table_us_eastern_datetime timestamp without time zone,
-        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key));
+        CONSTRAINT test_table_pid PRIMARY KEY (test_table_id));
 
 INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,              data_type_like,         relation_name_like,
@@ -81,17 +81,17 @@ DO $$BEGIN
 END$$;
 
 INSERT INTO user_data.test_table (
-        test_table_key, test_table_text,        test_table_date,        test_table_datetime,
+        test_table_id, test_table_text,        test_table_date,        test_table_datetime,
         test_table_us_eastern_datetime)
 VALUES (1,              'test_record_1',        '2010-01-02',           '2013-04-05 06:07:08-00',
         '2009-01-02 03:04:05');
 INSERT INTO user_data.test_table (
-        test_table_key, test_table_text,        test_table_date,        test_table_datetime,
+        test_table_id, test_table_text,        test_table_date,        test_table_datetime,
         test_table_us_eastern_datetime)
 VALUES (2,              ' ',                    '2099-01-01',           '2099-01-01 00:00:00-00',
         '2099-01-01 00:00:00');
 INSERT INTO user_data.test_table (
-        test_table_key, test_table_text,        test_table_date,        test_table_datetime,
+        test_table_id, test_table_text,        test_table_date,        test_table_datetime,
         test_table_us_eastern_datetime)
 VALUES (3,              NULL,                   '1889-12-31',           '1889-12-31 23:59:59-00',
         '1889-01-01 00:00:00');
@@ -101,16 +101,16 @@ INSERT INTO sys_syn.out_groups_def VALUES ('out');
 SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
 
 ALTER TABLE user_data.test_table_out_queue
-  ADD FOREIGN KEY (trans_id_in, key) REFERENCES user_data.test_table_in (trans_id_in, key) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
 
-SELECT  (in_data.key).*,
+SELECT  (in_data.id).*,
         COALESCE((in_data.attributes).test_table_text, '<NULL>') AS test_table_text_or_null,
         (in_data.attributes).*
 FROM    user_data.test_table_out_queue out_queue
-        LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, key)
-ORDER BY in_data.key;
+        LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, id)
+ORDER BY in_data.id;
 
 ROLLBACK;

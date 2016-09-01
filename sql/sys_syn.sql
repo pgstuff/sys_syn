@@ -1,13 +1,3 @@
-/*
- * Author: The maintainer's name
- * Created at: Tue Nov 24 16:47:02 -0500 2015
- *
- */
-
---
--- This is a example code genereted automaticaly
--- by pgxn-utils.
-
 SET client_min_messages = warning;
 
 CREATE SCHEMA sys_syn;
@@ -23,11 +13,10 @@ DO $$BEGIN
 END$$;
 
 CREATE TYPE sys_syn.in_column_type AS ENUM (
-        'Key',
+        'ID',
         'Attribute',
         'NoDiff',
-        'TransIdIn',
-        'SysSyn' -- For the data_view, not for in_columns.
+        'TransIdIn'
 );
 ALTER TYPE sys_syn.in_column_type OWNER TO postgres;
 
@@ -51,8 +40,8 @@ CREATE TYPE sys_syn.delta_type AS ENUM (
 ALTER TYPE sys_syn.delta_type OWNER TO postgres;
 
 CREATE TYPE sys_syn.queue_state AS ENUM (
-        'Unread',
-        'Reading',
+        'Unclaimed',
+        'Claimed',
         'Processed',
         'Hold'
 );
@@ -70,9 +59,9 @@ CREATE TYPE sys_syn.queue_column AS ENUM (
 ALTER TYPE sys_syn.queue_column OWNER TO postgres;
 
 CREATE TYPE sys_syn.create_out_column AS (
-        column_name text,
-        column_expression text,
-        queue_column_name sys_syn.queue_column,
+        column_name             text,
+        column_expression       text,
+        queue_column_name       sys_syn.queue_column,
         queue_column_expression text
 );
 ALTER TYPE sys_syn.create_out_column OWNER TO postgres;
@@ -88,17 +77,17 @@ CREATE UNIQUE INDEX settings_1_row_idx
         ((true));
 
 CREATE TABLE sys_syn.prepulls_def (
-        prepull_id text NOT NULL,
-        lock_id serial NOT NULL,
-        schema regnamespace NOT NULL
+        prepull_id      text NOT NULL,
+        lock_id         serial NOT NULL,
+        schema          regnamespace NOT NULL
 );
 ALTER TABLE sys_syn.prepulls_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.prepulls_def
         ADD CONSTRAINT prepulls_def_pkey PRIMARY KEY (prepull_id);
 
 CREATE TABLE sys_syn.in_groups_def (
-        in_group_id text NOT NULL,
-        parent_in_group_id text,
+        in_group_id             text NOT NULL,
+        parent_in_group_id      text,
         in_column_transform_rule_group_ids text[] DEFAULT NULL::text[]
 );
 ALTER TABLE sys_syn.in_groups_def OWNER TO postgres;
@@ -118,6 +107,7 @@ CREATE TABLE sys_syn.in_column_transforms (
         new_data_type           text,
         new_in_column_type      sys_syn.in_column_type,
         new_column_name         text,
+        new_array_order         smallint,
         expression              text,
         create_in_columns       sys_syn.create_in_column[],
         omit                    boolean,
@@ -131,9 +121,9 @@ CREATE UNIQUE INDEX ON sys_syn.in_column_transforms (
         priority, data_type_like, relation_name_like, in_column_type, column_name_like);
 
 CREATE TABLE sys_syn.in_pulls_def (
-        in_pull_id      text NOT NULL,
-        schema          regnamespace NOT NULL,
-        lock_id         integer NOT NULL,
+        in_pull_id      text            NOT NULL,
+        schema          regnamespace    NOT NULL,
+        lock_id         integer         NOT NULL,
         pull_pre_sql    text,
         pull_post_sql   text
 );
@@ -197,7 +187,7 @@ ALTER TABLE ONLY sys_syn.in_tables_def
         ADD CONSTRAINT in_tables_def_full_prepull_id_fkey FOREIGN KEY (full_prepull_id) REFERENCES sys_syn.prepulls_def(prepull_id)
                 ON UPDATE RESTRICT ON DELETE RESTRICT;
 ALTER TABLE ONLY sys_syn.in_tables_def
-        ADD CONSTRAINT in_tables_def_changes_prepull_id_fkey
+        ADD CONSTRAINT in_tables_def_changes_prepull_id_fid
                 FOREIGN KEY (changes_prepull_id) REFERENCES sys_syn.prepulls_def(prepull_id)
                 ON UPDATE RESTRICT ON DELETE RESTRICT;
 ALTER TABLE sys_syn.in_tables_def
@@ -227,11 +217,11 @@ ALTER TABLE sys_syn.in_table_columns_def
         ADD CONSTRAINT array_order_disallow_sign CHECK (array_order >= 0);
 
 CREATE TABLE sys_syn.in_foreign_keys (
-        primary_table_id        text NOT NULL,
-        foreign_table_id        text NOT NULL,
+        primary_table_id        text    NOT NULL,
+        foreign_table_id        text    NOT NULL,
         foreign_key_index       smallint NOT NULL,
-        primary_column_name     text NOT NULL,
-        foreign_column_name     text NOT NULL
+        primary_column_name     text    NOT NULL,
+        foreign_column_name     text    NOT NULL
 );
 ALTER TABLE sys_syn.in_foreign_keys OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.in_foreign_keys
@@ -248,7 +238,7 @@ ALTER TABLE sys_syn.in_foreign_keys
 
 CREATE TABLE sys_syn.in_pulls_request (
         in_pull_request_id      integer NOT NULL,
-        in_pull_id              text NOT NULL,
+        in_pull_id              text    NOT NULL,
         request_full            boolean NOT NULL
 );
 ALTER TABLE sys_syn.in_pulls_request OWNER TO postgres;
@@ -283,10 +273,10 @@ ALTER TABLE ONLY sys_syn.in_pulls_state
                 ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 CREATE TABLE sys_syn.in_trans_log (
-        trans_id_in     sys_syn.trans_id NOT NULL,
+        trans_id_in     sys_syn.trans_id        NOT NULL,
         pre_pull        boolean,
         changes_only    boolean,
-        in_table_ids    text[] NOT NULL,
+        in_table_ids    text[]                  NOT NULL,
         trans_time      timestamp with time zone DEFAULT now() NOT NULL,
         finish_time     timestamp with time zone
 );
@@ -321,7 +311,7 @@ CREATE TABLE sys_syn.out_tables_def (
         condition_sql           text,
         claim_limit_rows        integer DEFAULT 2147483647 NOT NULL,
         claim_queue_count       smallint,
-        claim_fixed_by_key      boolean DEFAULT false NOT NULL,
+        claim_fixed_by_id       boolean DEFAULT false NOT NULL,
         claim_random_sample     smallint,
         queue_pid_used_age      interval,
         record_comparison_different     text,
@@ -830,19 +820,19 @@ CREATE FUNCTION sys_syn.in_table_add(
         in_group_id             text,
         in_pull_id              text,
         in_columns              sys_syn.create_in_column[],
-        full_table_reference    text DEFAULT NULL,
-        changes_table_reference text DEFAULT NULL,
-        full_sql                text DEFAULT NULL,
-        changes_sql             text DEFAULT NULL,
-        full_pre_sql            text DEFAULT NULL,
-        changes_pre_sql         text DEFAULT NULL,
-        full_post_sql           text DEFAULT NULL,
-        changes_post_sql        text DEFAULT NULL,
+        full_table_reference    text    DEFAULT NULL,
+        changes_table_reference text    DEFAULT NULL,
+        full_sql                text    DEFAULT NULL,
+        changes_sql             text    DEFAULT NULL,
+        full_pre_sql            text    DEFAULT NULL,
+        changes_pre_sql         text    DEFAULT NULL,
+        full_post_sql           text    DEFAULT NULL,
+        changes_post_sql        text    DEFAULT NULL,
         enable_deletes_implied  boolean DEFAULT TRUE,
-        full_prepull_id         text DEFAULT NULL,
-        changes_prepull_id      text DEFAULT NULL,
-        record_comparison_different     text DEFAULT NULL,
-        record_comparison_same          text DEFAULT NULL)
+        full_prepull_id         text    DEFAULT NULL,
+        changes_prepull_id      text    DEFAULT NULL,
+        record_comparison_different text DEFAULT NULL,
+        record_comparison_same  text    DEFAULT NULL)
         RETURNS void
         LANGUAGE plpgsql
         COST 10
@@ -907,12 +897,12 @@ BEGIN
                 full_post_sql,                  changes_post_sql,
                 enable_deletes_implied, record_comparison_different,    record_comparison_same);
 
-        _sql_buffer := 'CREATE TYPE ' || schema::text || '.' || quote_ident(in_table_id||'_in_key') || ' AS (';
+        _sql_buffer := 'CREATE TYPE ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' AS (';
         _sql_delimit := FALSE;
         FOR     _in_column IN
         SELECT  *
         FROM    unnest(in_columns) AS in_column_rel
-        WHERE   in_column_rel.in_column_type = 'Key'::sys_syn.in_column_type
+        WHERE   in_column_rel.in_column_type = 'ID'::sys_syn.in_column_type
         LOOP
                 IF _sql_delimit THEN
                         _sql_buffer := _sql_buffer || ',';
@@ -924,8 +914,8 @@ BEGIN
         '||quote_ident(_in_column.column_name)||'       '||_in_column.data_type||'';
         END LOOP;
         IF _sql_delimit = FALSE THEN
-                RAISE EXCEPTION '1 or more key columns are required.'
-                        USING HINT = 'Find the primary key columns for this table and switch the in_column_type to Key.';
+                RAISE EXCEPTION '1 or more ID columns are required.'
+                        USING HINT = 'Find the primary key columns for this table and switch the in_column_type to ID.';
         END IF;
         _sql_buffer := _sql_buffer || ');
 ';
@@ -991,7 +981,7 @@ BEGIN
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_in') || ' (
         trans_id_in sys_syn.trans_id DEFAULT sys_syn.trans_id_get() NOT NULL,
-        key ' || schema::text || '.' || quote_ident(in_table_id||'_in_key') || ' NOT NULL,
+        id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
         attributes ' || schema::text || '.' || quote_ident(in_table_id||'_in_attributes') ||
         CASE WHEN _attributes_array THEN '[]' ELSE '' END || ',
         no_diff ' || schema::text || '.' || quote_ident(in_table_id||'_in_no_diff') || '
@@ -1000,7 +990,7 @@ BEGIN
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_in') || '
-        ADD CONSTRAINT ' || quote_ident(in_table_id||'_in_pkey') || ' PRIMARY KEY (trans_id_in, key);';
+        ADD CONSTRAINT ' || quote_ident(in_table_id||'_in_pkey') || ' PRIMARY KEY (trans_id_in, id);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1011,13 +1001,13 @@ BEGIN
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ' (
-        key ' || schema::text || '.' || quote_ident(in_table_id||'_in_key') || ' NOT NULL
+        id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL
 );';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || '
-        ADD CONSTRAINT ' || quote_ident(in_table_id||'_exclude_pkey') || ' PRIMARY KEY (key);';
+        ADD CONSTRAINT ' || quote_ident(in_table_id||'_exclude_pkey') || ' PRIMARY KEY (id);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1094,7 +1084,7 @@ CREATE FUNCTION sys_syn.in_table_add_sql(
         relation                        regclass,
         in_group_id                     text,
         schema                          regnamespace DEFAULT NULL::regnamespace,
-        key_columns                     name[] DEFAULT NULL::name[],
+        id_columns                      name[] DEFAULT NULL::name[],
         no_diff_columns                 name[] DEFAULT NULL::name[],
         omit_columns                    name[] DEFAULT NULL::name[],
         limit_to_columns                name[] DEFAULT NULL::name[],
@@ -1107,13 +1097,15 @@ CREATE FUNCTION sys_syn.in_table_add_sql(
         AS $_$
 DECLARE
         _in_column_transform_rule_group_ids text[];
-        _sql_buffer             TEXT;
+        _sql_buffer             TEXT := NULL;
         _column                 pg_catalog.pg_attribute%ROWTYPE;
         _column_name            TEXT;
         _in_column_type         sys_syn.in_column_type;
         _primary_key            int2vector;
         _source_in_expression   TEXT;
         _format_type            TEXT;
+        _array_order            smallint;
+        _array_order_next       smallint := 1;
         _in_column_transform    sys_syn.in_column_transforms%ROWTYPE;
         _create_in_columns      sys_syn.create_in_column[];
         _create_in_column       sys_syn.create_in_column;
@@ -1121,8 +1113,6 @@ DECLARE
         _omit                   boolean;
         _last_priority          smallint;
 BEGIN
-        _sql_buffer := NULL;
-
         _in_column_transform_rule_group_ids := (
                 WITH RECURSIVE all_transform_rule_group_ids(parent_in_group_id, in_column_transform_rule_group_ids) AS (
                         SELECT  in_groups_def.parent_in_group_id,
@@ -1161,21 +1151,21 @@ BEGIN
 
                 IF full_prepull_id IS NOT NULL AND _column.attname = 'trans_id_in' THEN
                         _in_column_type := 'TransIdIn'::sys_syn.in_column_type;
-                ELSIF key_columns IS NOT NULL THEN
-                        IF _column.attname = ANY(key_columns) THEN
-                                _in_column_type := 'Key'::sys_syn.in_column_type;
+                ELSIF id_columns IS NOT NULL THEN
+                        IF _column.attname = ANY(id_columns) THEN
+                                _in_column_type := 'ID'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSIF _primary_key IS NOT NULL THEN
                         IF _column.attnum = ANY(_primary_key) THEN
-                                _in_column_type := 'Key'::sys_syn.in_column_type;
+                                _in_column_type := 'ID'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSE
                         IF _column.attnotnull THEN
-                                _in_column_type := 'Key'::sys_syn.in_column_type;
+                                _in_column_type := 'ID'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
@@ -1190,12 +1180,13 @@ BEGIN
                 _column_name            := _column.attname;
                 _source_in_expression   := 'in_source.' || quote_ident(_column.attname);
                 _format_type            := format_type(_column.atttypid, _column.atttypmod);
+                _array_order            := NULL;
                 _create_in_columns      := ARRAY[]::sys_syn.create_in_column[];
                 _final_ids              := ARRAY[]::TEXT[];
                 _omit                   := FALSE;
                 _last_priority          := -1;
 
-                FOR _in_column_transform IN
+                FOR     _in_column_transform IN
                 SELECT  *
                 FROM    sys_syn.in_column_transforms
                 WHERE   (in_column_transforms.rule_group_id IS NULL OR
@@ -1254,6 +1245,15 @@ BEGIN
                                         _column_name := _in_column_transform.new_column_name;
                                 END IF;
 
+                                IF _in_column_transform.new_array_order IS NOT NULL THEN
+                                        IF _in_column_transform.new_array_order = 0 THEN
+                                                _array_order        := _array_order_next;
+                                                _array_order_next   := _array_order_next + 1;
+                                        ELSE
+                                                _array_order        := _in_column_transform.new_array_order;
+                                        END IF;
+                                END IF;
+
                                 IF _in_column_transform.expression IS NOT NULL THEN
                                         _source_in_expression :=
                                                 replace(_in_column_transform.expression, '%1', _source_in_expression);
@@ -1296,7 +1296,8 @@ $$;
                                 _column_name||$X$","$X$||
                                 _format_type||$X$",$X$||
                                 _in_column_type||$X$,"$X$||
-                                replace(_source_in_expression, '"', '\"')||$X$",,,,)$COL$$X$;
+                                replace(_source_in_expression, '"', '\"')||$X$",$X$||
+                                COALESCE(_array_order::text, '')||$X$,,,)$COL$$X$;
                 END IF;
 
                 FOR     _create_in_column IN
@@ -1330,7 +1331,7 @@ ALTER FUNCTION sys_syn.in_table_add_sql(
         relation                regclass,
         in_group_id             text,
         schema                  regnamespace,
-        key_columns             name[],
+        id_columns              name[],
         no_diff_columns         name[],
         omit_columns            name[],
         limit_to_columns        name[],
@@ -1339,11 +1340,11 @@ ALTER FUNCTION sys_syn.in_table_add_sql(
         in_table_id text) OWNER TO postgres;
 
 CREATE OR REPLACE FUNCTION sys_syn.in_table_columns_add_sql(
-        in_table_id text,
-        relation regclass DEFAULT NULL::regclass,
-        key_columns name[] DEFAULT NULL::name[],
-        no_diff_columns name[] DEFAULT NULL::name[],
-        omit_columns name[] DEFAULT NULL::name[],
+        in_table_id     text,
+        relation        regclass DEFAULT NULL::regclass,
+        id_columns      name[]  DEFAULT NULL::name[],
+        no_diff_columns name[]  DEFAULT NULL::name[],
+        omit_columns    name[]  DEFAULT NULL::name[],
         limit_to_columns name[] DEFAULT NULL::name[])
         RETURNS text AS
 $BODY$
@@ -1417,21 +1418,21 @@ BEGIN
 
                 IF _in_table_def.full_prepull_id IS NOT NULL AND _column.attname = 'trans_id_in' THEN
                         _in_column_type := 'TransIdIn'::sys_syn.in_column_type;
-                ELSIF in_table_columns_add_sql.key_columns IS NOT NULL THEN
-                        IF _column.attname = ANY(in_table_columns_add_sql.key_columns) THEN
-                                _in_column_type := 'Key'::sys_syn.in_column_type;
+                ELSIF in_table_columns_add_sql.id_columns IS NOT NULL THEN
+                        IF _column.attname = ANY(in_table_columns_add_sql.id_columns) THEN
+                                _in_column_type := 'ID'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSIF _primary_key IS NOT NULL THEN
                         IF _column.attnum = ANY(_primary_key) THEN
-                                _in_column_type := 'Key'::sys_syn.in_column_type;
+                                _in_column_type := 'ID'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSE
                         IF _column.attnotnull THEN
-                                _in_column_type := 'Key'::sys_syn.in_column_type;
+                                _in_column_type := 'ID'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
@@ -1452,7 +1453,7 @@ BEGIN
                 _omit                   := FALSE;
                 _last_priority          := -1;
 
-                FOR _in_column_transform IN
+                FOR     _in_column_transform IN
                 SELECT  *
                 FROM    sys_syn.in_column_transforms
                 WHERE   (in_column_transforms.rule_group_id IS NULL OR
@@ -1552,7 +1553,8 @@ $$;
                 END IF;
 
                 FOR     _create_in_column IN
-                SELECT  unnest(_create_in_columns)
+                SELECT  *
+                FROM    unnest(_create_in_columns) AS create_in_columns
                 LOOP
                         _sql_buffer := _sql_buffer || $$        '"$$||
                                         _create_in_column::text||$$"'$$;
@@ -1598,13 +1600,13 @@ BEGIN
                 FROM    sys_syn.in_table_columns_def
                 WHERE   in_table_columns_def.in_table_id = in_table_columns_add.in_table_id);
 
-        _sql_buffer := 'ALTER TYPE ' || _in_table_def.schema::text || '.' || quote_ident(in_table_id||'_in_key') || '
+        _sql_buffer := 'ALTER TYPE ' || _in_table_def.schema::text || '.' || quote_ident(in_table_id||'_in_id') || '
 ';
         _sql_delimit := FALSE;
         FOR     _in_column IN
         SELECT  *
         FROM    unnest(in_columns) AS in_column_rel
-        WHERE   in_column_rel.in_column_type = 'Key'::sys_syn.in_column_type
+        WHERE   in_column_rel.in_column_type = 'ID'::sys_syn.in_column_type
         LOOP
                 IF _sql_delimit THEN
                         _sql_buffer := _sql_buffer || ',
@@ -1760,7 +1762,7 @@ ALTER FUNCTION sys_syn.in_trans_finish() OWNER TO postgres;
 
 CREATE FUNCTION sys_syn.in_trans_start(
         changes_only    boolean,
-        in_table_ids    text[] DEFAULT ARRAY[]::text[],
+        in_table_ids    text[]  DEFAULT ARRAY[]::text[],
         pre_pull        boolean DEFAULT FALSE)
         RETURNS void
         LANGUAGE plpgsql
@@ -1795,8 +1797,8 @@ CREATE FUNCTION sys_syn.out_table_add_sql(
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
-        omit_columns            name[] DEFAULT NULL::name[],
-        limit_to_columns        name[] DEFAULT NULL::name[],
+        omit_columns            name[]          DEFAULT NULL::name[],
+        limit_to_columns        name[]          DEFAULT NULL::name[],
         data_view               boolean         DEFAULT FALSE,
         out_log_lifetime        interval        DEFAULT NULL,
         notification_channel    text            DEFAULT NULL,
@@ -1806,11 +1808,11 @@ CREATE FUNCTION sys_syn.out_table_add_sql(
         condition_sql           text            DEFAULT NULL,
         claim_limit_rows        integer         DEFAULT 2147483647,
         claim_queue_count       smallint        DEFAULT NULL,
-        claim_fixed_by_key      boolean         DEFAULT false,
+        claim_fixed_by_id       boolean         DEFAULT false,
         claim_random_sample     smallint        DEFAULT NULL,
         queue_pid_used_age      interval        DEFAULT NULL,
-        record_comparison_different     text    DEFAULT NULL,
-        record_comparison_same          text    DEFAULT NULL)
+        record_comparison_different text        DEFAULT NULL,
+        record_comparison_same  text            DEFAULT NULL)
         RETURNS text
         LANGUAGE plpgsql COST 10
         AS $_$
@@ -2054,7 +2056,7 @@ $$;
                 condition_sql           => $$||quote_nullable(condition_sql)||$$,
                 claim_limit_rows        => $$||quote_nullable(claim_limit_rows)||$$,
                 claim_queue_count       => $$||quote_nullable(claim_queue_count)||$$,
-                claim_fixed_by_key      => $$||quote_nullable(claim_fixed_by_key)||$$,
+                claim_fixed_by_id       => $$||quote_nullable(claim_fixed_by_id)||$$,
                 claim_random_sample     => $$||quote_nullable(claim_random_sample)||$$,
                 queue_pid_used_age      => $$||quote_nullable(queue_pid_used_age)||$$,
                 record_comparison_different=> $$||quote_nullable(record_comparison_different)||$$,
@@ -2079,11 +2081,11 @@ ALTER FUNCTION sys_syn.out_table_add_sql(
         condition_sql           text,
         claim_limit_rows        integer,
         claim_queue_count       smallint,
-        claim_fixed_by_key      boolean,
+        claim_fixed_by_id       boolean,
         claim_random_sample     smallint,
         queue_pid_used_age      interval,
-        record_comparison_different     text,
-        record_comparison_same          text
+        record_comparison_different text,
+        record_comparison_same  text
 
 ) OWNER TO postgres;
 
@@ -2101,11 +2103,11 @@ CREATE FUNCTION sys_syn.out_table_add(
         condition_sql           text            DEFAULT NULL,
         claim_limit_rows        integer         DEFAULT 2147483647,
         claim_queue_count       smallint        DEFAULT NULL,
-        claim_fixed_by_key      boolean         DEFAULT false,
+        claim_fixed_by_id       boolean         DEFAULT false,
         claim_random_sample     smallint        DEFAULT NULL,
         queue_pid_used_age      interval        DEFAULT NULL,
-        record_comparison_different     text    DEFAULT NULL,
-        record_comparison_same          text    DEFAULT NULL)
+        record_comparison_different text        DEFAULT NULL,
+        record_comparison_same  text            DEFAULT NULL)
         RETURNS void
         LANGUAGE plpgsql
         COST 10
@@ -2122,7 +2124,7 @@ DECLARE
         _sql_name_table_log             TEXT;
         _sql_name_table_queue_pid       TEXT;
         _sql_name_table_queue_bulk      TEXT;
-        _sql_name_type_in_key           TEXT;
+        _sql_name_type_in_id            TEXT;
         _sql_name_temp                  TEXT;
         _sql_name_type_in_attributes    TEXT;
         _sql_name_type_in_no_diff       TEXT;
@@ -2137,12 +2139,12 @@ BEGIN
         INSERT INTO sys_syn.out_tables_def(
                 in_table_id,    out_group_id,   schema, data_view,      out_log_lifetime,       notification_channel,
                 enable_adds,    enable_changes, enable_deletes, condition_sql,
-                claim_limit_rows,       claim_queue_count,      claim_fixed_by_key,     claim_random_sample,    queue_pid_used_age,
+                claim_limit_rows,       claim_queue_count,      claim_fixed_by_id,     claim_random_sample,    queue_pid_used_age,
                 record_comparison_different,    record_comparison_same)
         VALUES (
                 in_table_id,    out_group_id,   schema, data_view,      out_log_lifetime,       notification_channel,
                 enable_adds,    enable_changes, enable_deletes, condition_sql,
-                claim_limit_rows,       claim_queue_count,      claim_fixed_by_key,     claim_random_sample,    queue_pid_used_age,
+                claim_limit_rows,       claim_queue_count,      claim_fixed_by_id,     claim_random_sample,    queue_pid_used_age,
                 record_comparison_different,    record_comparison_same);
 
         INSERT INTO sys_syn.out_tables_state(
@@ -2151,7 +2153,7 @@ BEGIN
                 in_table_id,    out_group_id);
 
         _sql_name_table_in              := _in_table_def.schema::text || '.' || quote_ident(in_table_id||'_in');
-        _sql_name_type_in_key           := schema::text || '.' || quote_ident(in_table_id||'_in_key');
+        _sql_name_type_in_id            := schema::text || '.' || quote_ident(in_table_id||'_in_id');
         _sql_name_type_in_attributes    := schema::text || '.' || quote_ident(in_table_id||'_in_attributes') ||
                 CASE WHEN _in_table_def.attributes_array THEN '[]' ELSE '' END;
         _sql_name_type_in_no_diff       := schema::text || '.' || quote_ident(in_table_id||'_in_no_diff');
@@ -2162,7 +2164,7 @@ BEGIN
         _sql_name_table_queue_bulk:= schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue_bulk');
 
         _sql_buffer := 'CREATE UNLOGGED TABLE '||_sql_name_table_temp||' (
-        key '||_sql_name_type_in_key||' NOT NULL,
+        id '||_sql_name_type_in_id||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL
 );
 ';
@@ -2171,22 +2173,22 @@ BEGIN
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_temp_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_temp||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (key);
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_temp_trans_id_in_fkey');
+        _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_temp_trans_id_in_fid');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_temp||'
-        ADD CONSTRAINT '||quote_ident(_sql_name_temp||'_trans_id_in_fkey')||' FOREIGN KEY (trans_id_in, key) REFERENCES '||
-                _sql_name_table_in||'(trans_id_in, key) ON UPDATE RESTRICT ON DELETE RESTRICT;
+        ADD CONSTRAINT '||quote_ident(_sql_name_temp||'_trans_id_in_fkey')||' FOREIGN KEY (trans_id_in, id) REFERENCES '||
+                _sql_name_table_in||'(trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_name_table_orphaned := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_orphaned');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_orphaned||' (
-        key '||_sql_name_type_in_key||' NOT NULL,
+        id '||_sql_name_type_in_id||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL
 );';
         RAISE DEBUG '%', _sql_buffer;
@@ -2194,22 +2196,22 @@ BEGIN
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_orphaned_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_orphaned||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (key);
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_orphaned_trans_id_in_fkey');
+        _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_orphaned_trans_id_in_fid');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_orphaned||'
-        ADD CONSTRAINT '||_sql_name_temp||' FOREIGN KEY (trans_id_in, key) REFERENCES '||_sql_name_table_in||
-                '(trans_id_in, key) ON UPDATE RESTRICT ON DELETE RESTRICT;
+        ADD CONSTRAINT '||_sql_name_temp||' FOREIGN KEY (trans_id_in, id) REFERENCES '||_sql_name_table_in||
+                '(trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_name_table_locked := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_locked');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_locked||' (
-        key '||_sql_name_type_in_key||' NOT NULL,
+        id '||_sql_name_type_in_id||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL
 );
 ';
@@ -2218,22 +2220,22 @@ BEGIN
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_locked_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_locked||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (key);
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_locked_trans_id_in_fkey');
+        _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_locked_trans_id_in_fid');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_locked||'
-        ADD CONSTRAINT '||_sql_name_temp||' FOREIGN KEY (trans_id_in, key) REFERENCES '||_sql_name_table_in||
-                '(trans_id_in, key) ON UPDATE RESTRICT ON DELETE RESTRICT;
+        ADD CONSTRAINT '||_sql_name_temp||' FOREIGN KEY (trans_id_in, id) REFERENCES '||_sql_name_table_in||
+                '(trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_name_table_queue := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_queue||' (
-        key '||_sql_name_type_in_key||' NOT NULL,
+        id '||_sql_name_type_in_id||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL,
         delta_type sys_syn.delta_type NOT NULL,
         queue_state sys_syn.queue_state NOT NULL,
@@ -2254,7 +2256,7 @@ BEGIN
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_queue_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_queue||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (key);
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
@@ -2280,7 +2282,7 @@ $$;
 
         _sql_name_table_baseline := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_baseline');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_baseline||' (
-        key '||_sql_name_type_in_key||' NOT NULL,
+        id '||_sql_name_type_in_id||' NOT NULL,
         trans_id_in sys_syn.trans_id NOT NULL
 );
 ';
@@ -2289,22 +2291,22 @@ $$;
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_baseline_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_baseline||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (key);
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_baseline_trans_id_in_fkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_baseline||'
-        ADD CONSTRAINT '||_sql_name_temp||' FOREIGN KEY (trans_id_in, key) REFERENCES '||_sql_name_table_in||
-                '(trans_id_in, key) ON UPDATE RESTRICT ON DELETE RESTRICT;
+        ADD CONSTRAINT '||_sql_name_temp||' FOREIGN KEY (trans_id_in, id) REFERENCES '||_sql_name_table_in||
+                '(trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_name_table_exclude := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_exclude');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_exclude||' (
-        key '||_sql_name_type_in_key||' NOT NULL
+        id '||_sql_name_type_in_id||' NOT NULL
 );
 ';
         RAISE DEBUG '%', _sql_buffer;
@@ -2312,14 +2314,14 @@ $$;
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_exclude_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_exclude||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (key);
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_log||' (
         trans_id_in sys_syn.trans_id NOT NULL,
-        key '||_sql_name_type_in_key||' NOT NULL,
+        id '||_sql_name_type_in_id||' NOT NULL,
         trans_id_out sys_syn.trans_id NOT NULL,
         processed_time timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
         delta_type sys_syn.delta_type NOT NULL,
@@ -2329,7 +2331,7 @@ $$;
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE INDEX ON '||_sql_name_table_log||' (trans_id_in, key);';
+        _sql_buffer := 'CREATE INDEX ON '||_sql_name_table_log||' (trans_id_in, id);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -2352,13 +2354,13 @@ $$;
 
         IF data_view THEN
             _sql_buffer := 'CREATE UNLOGGED TABLE '||_sql_name_table_queue_bulk||$$ (
-        key             $$||_sql_name_type_in_key||$$ NOT NULL,
+        id              $$||_sql_name_type_in_id||$$ NOT NULL,
         hold_reason_id  integer,
         hold_reason_text text,
         queue_id        smallint,
         queue_priority  smallint,
         processed_time  timestamp with time zone,
-        PRIMARY KEY (key)
+        PRIMARY KEY (id)
 );
 $$;
             RAISE DEBUG '%', _sql_buffer;
@@ -2366,7 +2368,7 @@ $$;
         END IF;
 
         _sql_name_temp := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_priority');
-        _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_sql_name_temp||'(key '||_sql_name_type_in_key||
+        _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_sql_name_temp||'(id '||_sql_name_type_in_id||
                 ', delta_type sys_syn.delta_type, attributes_new '||_sql_name_type_in_attributes||', no_diff_new '||
                 _sql_name_type_in_no_diff||', attributes_baseline '||_sql_name_type_in_attributes||')
   RETURNS smallint AS
@@ -2427,7 +2429,7 @@ ALTER FUNCTION sys_syn.out_table_add(
         condition_sql           text,
         claim_limit_rows        integer,
         claim_queue_count       smallint,
-        claim_fixed_by_key      boolean,
+        claim_fixed_by_id       boolean,
         claim_random_sample     smallint,
         queue_pid_used_age      interval,
         record_comparison_different     text,
@@ -2455,7 +2457,7 @@ BEGIN
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = util_column_name_to_data_type.in_table_id);
 
-        _in_column_type_name := in_table_id || '_in_key';
+        _in_column_type_name := in_table_id || '_in_id';
         _data_type := (
                 SELECT  format_type(pg_attribute.atttypid, pg_attribute.atttypmod)
                 FROM    pg_catalog.pg_namespace JOIN
@@ -2534,9 +2536,9 @@ BEGIN
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = util_column_name_to_in_column_type.in_table_id);
 
-        _in_column_type_name := in_table_id || '_in_key';
+        _in_column_type_name := in_table_id || '_in_id';
         _in_column_type := (
-                SELECT  'Key'::sys_syn.in_column_type
+                SELECT  'ID'::sys_syn.in_column_type
                 FROM    pg_catalog.pg_namespace JOIN
                         pg_catalog.pg_class ON
                                 pg_class.relnamespace = pg_namespace.oid JOIN
@@ -2605,7 +2607,7 @@ DECLARE
 BEGIN
         _column_name :=
                 CASE in_column_type
-                        WHEN 'Key'::sys_syn.in_column_type              THEN 'key'
+                        WHEN 'ID'::sys_syn.in_column_type               THEN 'id'
                         WHEN 'Attribute'::sys_syn.in_column_type        THEN 'attributes'
                         WHEN 'NoDiff'::sys_syn.in_column_type           THEN 'no_diff'
                         ELSE                                            NULL
@@ -2729,7 +2731,8 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) != ALL(ARRAY['Attribute'::sys_syn.in_column_type])
+                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                        'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
 
@@ -2752,7 +2755,8 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) != 'Attribute'::sys_syn.in_column_type
+                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                        'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
 
@@ -2828,7 +2832,8 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) != 'Attribute'::sys_syn.in_column_type
+                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                        'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
 
@@ -2947,7 +2952,8 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) != 'Attribute'::sys_syn.in_column_type
+                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                        'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
 
@@ -2970,7 +2976,8 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) != 'Attribute'::sys_syn.in_column_type
+                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                        'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
 
@@ -3046,7 +3053,8 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) != 'Attribute'::sys_syn.in_column_type
+                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                        'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
 
@@ -3326,14 +3334,14 @@ $$;
                 EXISTS (
                         SELECT
                         FROM    (
-                                        SELECT DISTINCT ON (key)
-                                                trans_id_in,            key
+                                        SELECT DISTINCT ON (id)
+                                                trans_id_in,            id
                                         FROM    $$||_in_table_ident||$$ AS changes
                                         WHERE   changes.trans_id_in > _out_trans_id_in_latest_any
-                                        ORDER BY key, trans_id_in DESC
+                                        ORDER BY id, trans_id_in DESC
                                 ) AS most_recent_change
                         WHERE   most_recent_change.trans_id_in  != in_data.trans_id_in AND
-                                most_recent_change.key          = in_data.key
+                                most_recent_change.id          = in_data.id
                 ) AND
                 in_data.trans_id_in > _out_trans_id_in_latest_any AND
                 (preserve_trans_id_in_and_after IS NULL OR in_data.trans_id_in <= preserve_trans_id_in_and_after) AND
@@ -3355,11 +3363,11 @@ CREATE OR REPLACE FUNCTION sys_syn.util_out_tables_for_pro_for_tab_cols_code(
 $BODY$
 DECLARE
         _sql_buffer             TEXT;
-        _in_foreign_key         sys_syn.in_foreign_keys%ROWTYPE;
+        _in_foreign_id         sys_syn.in_foreign_keys%ROWTYPE;
 BEGIN
         _sql_buffer := '';
 
-        FOR     _in_foreign_key IN
+        FOR     _in_foreign_id IN
         SELECT  *
         FROM    sys_syn.in_foreign_keys
         WHERE   in_foreign_keys.primary_table_id = util_out_tables_for_pro_for_tab_cols_code.primary_table_id AND
@@ -3384,13 +3392,13 @@ BEGIN
                         sys_syn.util_in_column_type_to_column_name(
                                 sys_syn.util_column_name_to_in_column_type(
                                         primary_table_id,
-                                        _in_foreign_key.primary_column_name)
-                        ) || ').' || quote_ident(_in_foreign_key.primary_column_name) || ' = (in_orphaned.' ||
+                                        _in_foreign_id.primary_column_name)
+                        ) || ').' || quote_ident(_in_foreign_id.primary_column_name) || ' = (in_orphaned.' ||
                         sys_syn.util_in_column_type_to_column_name(
                                 sys_syn.util_column_name_to_in_column_type(
                                         out_table_def.in_table_id,
-                                        _in_foreign_key.foreign_column_name)
-                        ) ||').' || quote_ident(_in_foreign_key.foreign_column_name);
+                                        _in_foreign_id.foreign_column_name)
+                        ) ||').' || quote_ident(_in_foreign_id.foreign_column_name);
 
         END LOOP;
 
@@ -3440,9 +3448,9 @@ $BODY$
 ALTER FUNCTION sys_syn.util_out_tables_for_pro_for_tabs_cols_code(out_table_def sys_syn.out_tables_def) OWNER TO postgres;
 
 CREATE OR REPLACE FUNCTION sys_syn.util_in_columns_format (
-        in_table_id text,
-        in_column_type sys_syn.in_column_type,
-        format_text text,
+        in_table_id     text,
+        in_column_type  sys_syn.in_column_type,
+        format_text     text,
         column_delimiter text)
   RETURNS text AS
 $BODY$
@@ -3462,8 +3470,8 @@ BEGIN
         CASE in_column_type
         WHEN 'Attribute'::sys_syn.in_column_type THEN
                 _in_column_type_name := _in_table_def.in_table_id||'_in_attributes';
-        WHEN 'Key'::sys_syn.in_column_type THEN
-                _in_column_type_name := _in_table_def.in_table_id||'_in_key';
+        WHEN 'ID'::sys_syn.in_column_type THEN
+                _in_column_type_name := _in_table_def.in_table_id||'_in_id';
         WHEN 'NoDiff'::sys_syn.in_column_type THEN
                 _in_column_type_name := _in_table_def.in_table_id||'_in_no_diff';
         ELSE
@@ -3542,7 +3550,7 @@ SELECT  ';
                 WHERE   out_view_columns_def.in_table_id = out_table_def.in_table_id AND
                         out_view_columns_def.out_group_id = out_table_def.out_group_id) THEN
 
-                _sql_buffer := _sql_buffer || 'out_queue.key AS sys_syn_key';
+                _sql_buffer := _sql_buffer || 'out_queue.id AS sys_syn_id';
 
                 FOR     _out_view_column_def IN
                 SELECT  *
@@ -3560,7 +3568,7 @@ SELECT  ';
         ELSE
 
                 _sql_buffer := _sql_buffer ||
-       'out_queue.key                   AS sys_syn_key,
+       'out_queue.id                    AS sys_syn_id,
         out_queue.trans_id_in           AS sys_syn_trans_id_in,
         out_queue.delta_type            AS sys_syn_delta_type,
         out_queue.queue_state           AS sys_syn_queue_state,
@@ -3576,7 +3584,7 @@ SELECT  ';
         out_queue.processed_time        AS sys_syn_processed_time,
         ' || CASE WHEN _in_table_def.attributes_array THEN
                 'in_attributes.sys_syn_attribute_array_ordinal::int AS sys_syn_attribute_array_ordinal,' ELSE '' END ||'
-        (in_source.key).*,
+        (out_queue.id).*,
         ' || CASE WHEN _in_table_def.attributes_array THEN
                 sys_syn.util_in_columns_format(out_table_def.in_table_id, 'Attribute'::sys_syn.in_column_type,
                         'in_attributes.%COLUMN_NAME%', ', ') ELSE '(in_source.attributes).*' END ||',
@@ -3586,7 +3594,7 @@ SELECT  ';
 
         _sql_buffer := _sql_buffer || '
 FROM    '||_sql_name_out_queue||' AS out_queue LEFT OUTER JOIN
-                '||_sql_name_in||' AS in_source USING (trans_id_in, key)';
+                '||_sql_name_in||' AS in_source USING (trans_id_in, id)';
 
         IF _in_table_def.attributes_array THEN
                 _sql_buffer := _sql_buffer || ',
@@ -3645,7 +3653,7 @@ CREATE RULE '||_sql_name_out_view_rule_update||' AS ON UPDATE TO '||_sql_name_ou
         END IF;
 
         _sql_buffer := _sql_buffer || '
-        WHERE   key = OLD.sys_syn_key;
+        WHERE   id = OLD.sys_syn_id;
 );';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
@@ -3793,19 +3801,19 @@ BEGIN
         END IF;
 
         INSERT INTO $$||_out_table_queue_ident||$$ (
-                key,                            trans_id_in,
+                id,                            trans_id_in,
                 delta_type,
                 queue_state,
                 queue_priority
         )
-        SELECT  out_orphaned.key,               out_orphaned.trans_id_in,
+        SELECT  out_orphaned.id,               out_orphaned.trans_id_in,
                 'Add'::sys_syn.delta_type,
-                'Unread'::sys_syn.queue_state,
-                $$||_out_proc_priority_ident||$$(out_orphaned.key, 'Add'::sys_syn.delta_type, NULL, NULL, NULL)
+                'Unclaimed'::sys_syn.queue_state,
+                $$||_out_proc_priority_ident||$$(out_orphaned.id, 'Add'::sys_syn.delta_type, NULL, NULL, NULL)
         FROM    $$||_out_table_orphaned_ident||$$ AS out_orphaned,
                 $$||_in_table_ident||$$           AS in_orphaned
         WHERE   in_orphaned.trans_id_in     = out_orphaned.trans_id_in AND
-                in_orphaned.key             = out_orphaned.key AND
+                in_orphaned.id             = out_orphaned.id AND
                 $$||sys_syn.util_out_tables_for_pro_for_tabs_cols_code(out_table_def)||$$
         ON CONFLICT DO NOTHING; -- Continue if the user manually put rows into the queue and forgot about the orphaned state table.
         IF FOUND THEN _possible_changes := TRUE; END IF;
@@ -3815,7 +3823,7 @@ BEGIN
         WHERE   EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.key = out_orphaned.key
+                        WHERE   out_queue.id = out_orphaned.id
                 );
 
         RETURN _possible_changes;
@@ -3856,7 +3864,7 @@ BEGIN
         --LOCK TABLE $$||_out_table_queue_ident||$$ IN ACCESS EXCLUSIVE MODE;
         PERFORM
         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-        WHERE   queue_state = 'Unread'::sys_syn.queue_state
+        WHERE   queue_state = 'Unclaimed'::sys_syn.queue_state
         FOR UPDATE;
 
         _out_table_state := (
@@ -3909,23 +3917,23 @@ BEGIN
         TRUNCATE $$||_out_table_temp_ident||$$;
 
         INSERT INTO $$||_out_table_temp_ident||$$
-        SELECT DISTINCT ON (in_data.key)
-                in_data.key,    in_data.trans_id_in
+        SELECT DISTINCT ON (in_data.id)
+                in_data.id,    in_data.trans_id_in
         FROM    $$||_in_table_ident||$$ AS in_data
         WHERE   in_data.trans_id_in BETWEEN _trans_id_start AND _trans_id_end AND
                 NOT EXISTS (
                         SELECT
                         FROM    $$||_in_table_exclude_ident||$$ AS in_exclude
-                        WHERE   in_exclude.key = in_data.key
+                        WHERE   in_exclude.id = in_data.id
                 ) AND
                 NOT EXISTS (
                         SELECT
                         FROM    $$||_out_table_exclude_ident||$$ AS out_exclude
-                        WHERE   out_exclude.key = in_data.key
+                        WHERE   out_exclude.id = in_data.id
                 )$$||COALESCE(' AND (
                         ' || out_table_def.condition_sql || ')', '')||$$
-        ORDER BY in_data.key, in_data.trans_id_in DESC
-        ON CONFLICT (key) DO UPDATE
+        ORDER BY in_data.id, in_data.trans_id_in DESC
+        ON CONFLICT (id) DO UPDATE
         SET     trans_id_in = EXCLUDED.trans_id_in;
 $$;
 
@@ -3942,35 +3950,35 @@ $$;
 
         _sql_buffer := _sql_buffer || $$
         IF _changes_only THEN
-                -- Delete unchanged data to reduce I/O with the Unread records below.
+                -- Delete unchanged data to reduce I/O with the Unclaimed records below.
                 DELETE
                 FROM    $$||_out_table_temp_ident||$$           AS out_temp
                 USING   $$||_in_table_ident||$$                 AS in_temp,
                         $$||_out_table_baseline_ident||$$       AS out_baseline,
                         $$||_in_table_ident||$$                 AS in_baseline
                 WHERE   in_temp.trans_id_in     = out_temp.trans_id_in AND
-                        in_temp.key             = out_temp.key AND
-                        out_baseline.key        = out_temp.key AND
+                        in_temp.id              = out_temp.id AND
+                        out_baseline.id         = out_temp.id AND
                         in_baseline.trans_id_in = out_baseline.trans_id_in AND
-                        in_baseline.key         = out_baseline.key AND
+                        in_baseline.id          = out_baseline.id AND
                         $$||sys_syn.util_record_comparison_code('in_temp','in_baseline',out_table_def,false)||$$;
         END IF;
 
         -- Retry locked records.
 
         INSERT INTO $$||_out_table_temp_ident||$$
-        SELECT  out_locked.key, out_locked.trans_id_in
+        SELECT  out_locked.id, out_locked.trans_id_in
         FROM    $$||_out_table_locked_ident||$$ AS out_locked
         WHERE   EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.key           = out_locked.key AND
-                                out_queue.queue_state   = 'Unread'::sys_syn.queue_state
+                        WHERE   out_queue.id            = out_locked.id AND
+                                out_queue.queue_state   = 'Unclaimed'::sys_syn.queue_state
                 ) OR
                 NOT EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.key = out_locked.key
+                        WHERE   out_queue.id = out_locked.id
                 );
 
         DELETE
@@ -3978,22 +3986,22 @@ $$;
         WHERE   EXISTS (
                         SELECT
                         FROM    $$||_out_table_temp_ident||$$ AS out_temp
-                        WHERE   out_temp.key = out_locked.key
+                        WHERE   out_temp.id = out_locked.id
                 );
 
         -- Remove records from the queue that have been deleted or are about to be replaced.
 
         IF _changes_only THEN
                 DELETE FROM $$||_out_table_queue_ident||$$ AS out_queue
-                WHERE   queue_state = 'Unread'::sys_syn.queue_state AND
+                WHERE   queue_state = 'Unclaimed'::sys_syn.queue_state AND
                         EXISTS (
                                 SELECT
                                 FROM    $$||_out_table_temp_ident||$$ AS out_temp
-                                WHERE   out_temp.key = out_queue.key
+                                WHERE   out_temp.id = out_queue.id
                         );
         ELSE
                 DELETE FROM $$||_out_table_queue_ident||$$
-                WHERE   queue_state = 'Unread'::sys_syn.queue_state;
+                WHERE   queue_state = 'Unclaimed'::sys_syn.queue_state;
 
                 TRUNCATE $$||_out_table_orphaned_ident||$$;
         END IF;
@@ -4010,14 +4018,14 @@ $$;
         WHERE   EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.key = out_temp.key
+                        WHERE   out_queue.id = out_temp.id
                 );
 
         DELETE FROM $$||_out_table_temp_ident||$$ AS out_temp
         WHERE   EXISTS (
                         SELECT
                         FROM    $$||_out_table_locked_ident||$$ AS out_locked
-                        WHERE   out_locked.key = out_temp.key
+                        WHERE   out_locked.id = out_temp.id
                 );
 
         -- Diff Hold (locked) records.
@@ -4027,9 +4035,9 @@ $$;
                         UPDATE  $$||_out_table_queue_ident||$$ AS out_queue
                         SET     trans_id_in             = _trans_id_start,
                                 delta_type              = 'Delete'::sys_syn.delta_type,
-                                queue_state             = 'Unread'::sys_syn.queue_state,
+                                queue_state             = 'Unclaimed'::sys_syn.queue_state,
                                 queue_id                = NULL,
-                                queue_priority          = $$||_out_proc_priority_ident||$$(out_queue.key,
+                                queue_priority          = $$||_out_proc_priority_ident||$$(out_queue.id,
                                                                 'Delete'::sys_syn.delta_type, NULL, NULL, NULL),
                                 hold_updated            = TRUE,
                                 hold_trans_id_first     = NULL,
@@ -4043,7 +4051,7 @@ $$;
                                 NOT EXISTS (
                                         SELECT
                                         FROM    $$||_out_table_locked_ident||$$ AS out_locked
-                                        WHERE   out_locked.key = out_queue.key
+                                        WHERE   out_locked.id = out_queue.id
                                 );
                         IF FOUND THEN _possible_changes := TRUE; END IF;
                 END IF;
@@ -4053,9 +4061,9 @@ $$;
                 UPDATE  $$||_out_table_queue_ident||$$ AS out_queue
                 SET     trans_id_in             = in_locked.trans_id_in,
                         delta_type              = 'Change'::sys_syn.delta_type,
-                        queue_state             = 'Unread'::sys_syn.queue_state,
+                        queue_state             = 'Unclaimed'::sys_syn.queue_state,
                         queue_id                = NULL,
-                        queue_priority          = $$||_out_proc_priority_ident||$$(in_data.key, 'Change'::sys_syn.delta_type,
+                        queue_priority          = $$||_out_proc_priority_ident||$$(in_data.id, 'Change'::sys_syn.delta_type,
                                                         in_data.attributes, in_data.no_diff, in_locked.attributes),
                         hold_updated            = TRUE,
                         hold_trans_id_first     = NULL,
@@ -4069,11 +4077,11 @@ $$;
                         $$||_out_table_locked_ident||$$ AS out_locked,
                         $$||_in_table_ident||$$                 AS in_locked
                 WHERE   in_data.trans_id_in     = out_queue.trans_id_in AND
-                        in_data.key             = out_queue.key AND
-                        out_locked.key          = out_queue.key AND
+                        in_data.id              = out_queue.id AND
+                        out_locked.id           = out_queue.id AND
                         out_queue.queue_state   = 'Hold'::sys_syn.queue_state AND
                         in_locked.trans_id_in   = out_locked.trans_id_in AND
-                        in_locked.key           = out_locked.key AND
+                        in_locked.id            = out_locked.id AND
                         $$||sys_syn.util_record_comparison_code('in_data','in_locked',out_table_def,true)||$$;
                 IF FOUND THEN _possible_changes := TRUE; END IF;
         END IF;
@@ -4081,16 +4089,16 @@ $$;
         IF _out_table_def.enable_deletes THEN
                 -- Explicit deletes
                 INSERT INTO $$||_out_table_queue_ident||$$ (
-                        key,                    trans_id_in,
+                        id,                    trans_id_in,
                         delta_type,                     queue_state,
                         queue_priority)
-                SELECT  out_temp.key,           out_temp.trans_id_in,
-                        'Delete'::sys_syn.delta_type,   'Unread'::sys_syn.queue_state,
-                        $$||_out_proc_priority_ident||$$(out_temp.key, 'Delete'::sys_syn.delta_type, NULL, NULL, NULL)
+                SELECT  out_temp.id,           out_temp.trans_id_in,
+                        'Delete'::sys_syn.delta_type,   'Unclaimed'::sys_syn.queue_state,
+                        $$||_out_proc_priority_ident||$$(out_temp.id, 'Delete'::sys_syn.delta_type, NULL, NULL, NULL)
                 FROM    $$||_out_table_temp_ident||$$ AS out_temp,
                         $$||_in_table_ident||$$       AS in_temp
                 WHERE   in_temp.trans_id_in     = out_temp.trans_id_in AND
-                        in_temp.key             = out_temp.key AND
+                        in_temp.id              = out_temp.id AND
                         -- Test if the composite itself is NULL, not any of the values inside of it.
                         CASE ROW(NULL,ROW(NULL,NULL)) IS NULL -- Is before commit 4452000f310b8c1c947ee724618c1bc31ed20242?
                                 WHEN TRUE THEN ROW(ROW(in_temp.attributes)) IS NULL
@@ -4099,7 +4107,7 @@ $$;
                         EXISTS (
                                 SELECT
                                 FROM    $$||_out_table_baseline_ident||$$ AS out_baseline
-                                WHERE   out_baseline.key = out_temp.key
+                                WHERE   out_baseline.id = out_temp.id
                         );
                 IF FOUND THEN _possible_changes := TRUE; END IF;
         END IF;
@@ -4112,22 +4120,22 @@ $$;
         IF NOT _changes_only AND _out_table_def.enable_deletes THEN
                 -- Implicit deletes
                 INSERT INTO $$||_out_table_queue_ident||$$ (
-                        key,                    trans_id_in,
+                        id,                    trans_id_in,
                         delta_type,                     queue_state,
                         queue_priority)
-                SELECT  out_baseline.key,       _trans_id_start,
-                        'Delete'::sys_syn.delta_type,   'Unread'::sys_syn.queue_state,
-                        $$||_out_proc_priority_ident||$$(out_baseline.key, 'Delete'::sys_syn.delta_type, NULL, NULL, NULL)
+                SELECT  out_baseline.id,       _trans_id_start,
+                        'Delete'::sys_syn.delta_type,   'Unclaimed'::sys_syn.queue_state,
+                        $$||_out_proc_priority_ident||$$(out_baseline.id, 'Delete'::sys_syn.delta_type, NULL, NULL, NULL)
                 FROM    $$||_out_table_baseline_ident||$$ AS out_baseline
                 WHERE   NOT EXISTS (
                                 SELECT
                                 FROM    $$||_out_table_temp_ident||$$ AS out_temp
-                                WHERE   out_temp.key = out_baseline.key
+                                WHERE   out_temp.id = out_baseline.id
                         ) AND
                         NOT EXISTS (
                                 SELECT
                                 FROM    $$||_out_table_locked_ident||$$ AS out_locked
-                                WHERE   out_locked.key = out_baseline.key
+                                WHERE   out_locked.id = out_baseline.id
                         );
                 IF FOUND THEN _possible_changes := TRUE; END IF;
         END IF;
@@ -4138,22 +4146,22 @@ $$;
 
         IF _out_table_def.enable_changes THEN
                 INSERT INTO $$||_out_table_queue_ident||$$ (
-                        key,                    trans_id_in,
+                        id,                    trans_id_in,
                         delta_type,                     queue_state,
                         queue_priority)
-                SELECT  out_temp.key,           out_temp.trans_id_in,
-                        'Change'::sys_syn.delta_type,   'Unread'::sys_syn.queue_state,
-                        $$||_out_proc_priority_ident||$$(in_temp.key, 'Change'::sys_syn.delta_type,
+                SELECT  out_temp.id,           out_temp.trans_id_in,
+                        'Change'::sys_syn.delta_type,   'Unclaimed'::sys_syn.queue_state,
+                        $$||_out_proc_priority_ident||$$(in_temp.id, 'Change'::sys_syn.delta_type,
                                 in_temp.attributes, in_temp.no_diff, in_baseline.attributes)
                 FROM    $$||_out_table_temp_ident||$$           AS out_temp,
                         $$||_in_table_ident||$$                 AS in_temp,
                         $$||_out_table_baseline_ident||$$       AS out_baseline,
                         $$||_in_table_ident||$$                 AS in_baseline
                 WHERE   in_temp.trans_id_in     = out_temp.trans_id_in AND
-                        in_temp.key             = out_temp.key AND
-                        out_baseline.key        = out_temp.key AND
+                        in_temp.id              = out_temp.id AND
+                        out_baseline.id         = out_temp.id AND
                         in_baseline.trans_id_in = out_baseline.trans_id_in AND
-                        in_baseline.key         = out_baseline.key AND
+                        in_baseline.id          = out_baseline.id AND
                         -- Test if the composite itself is not NULL, not any of the values inside of it.
                         CASE ROW(NULL,ROW(NULL,NULL)) IS NULL -- Is before commit 4452000f310b8c1c947ee724618c1bc31ed20242?
                                 WHEN TRUE THEN ROW(ROW(in_temp.attributes)) IS NOT NULL
@@ -4165,17 +4173,17 @@ $$;
 
         IF _out_table_def.enable_adds THEN
                 INSERT INTO $$||_out_table_queue_ident||$$ (
-                        key,                    trans_id_in,
+                        id,                    trans_id_in,
                         delta_type,                     queue_state,
                         queue_priority)
-                SELECT  out_temp.key,           out_temp.trans_id_in,
-                        'Add'::sys_syn.delta_type,      'Unread'::sys_syn.queue_state,
-                        $$||_out_proc_priority_ident||$$(out_temp.key, 'Add'::sys_syn.delta_type, NULL, NULL, NULL)
+                SELECT  out_temp.id,           out_temp.trans_id_in,
+                        'Add'::sys_syn.delta_type,      'Unclaimed'::sys_syn.queue_state,
+                        $$||_out_proc_priority_ident||$$(out_temp.id, 'Add'::sys_syn.delta_type, NULL, NULL, NULL)
                 FROM    $$||_out_table_temp_ident||$$ AS out_temp
                 WHERE   NOT EXISTS (
                                 SELECT
                                 FROM    $$||_out_table_baseline_ident||$$ AS out_baseline
-                                WHERE   out_baseline.key = out_temp.key
+                                WHERE   out_baseline.id = out_temp.id
                         );
                 IF FOUND THEN _possible_changes := TRUE; END IF;
         END IF;
@@ -4187,19 +4195,19 @@ $$;
         IF NOT _out_table_def.enable_adds THEN
                 DELETE FROM $$||_out_table_queue_ident||$$ AS out_queue
                 WHERE   out_queue.delta_type    = 'Add'::sys_syn.delta_type AND
-                        out_queue.queue_state   = 'Unread'::sys_syn.queue_state;
+                        out_queue.queue_state   = 'Unclaimed'::sys_syn.queue_state;
         END IF;
 
         IF NOT _out_table_def.enable_changes THEN
                 DELETE FROM $$||_out_table_queue_ident||$$ AS out_queue
                 WHERE   out_queue.delta_type    = 'Change'::sys_syn.delta_type AND
-                        out_queue.queue_state   = 'Unread'::sys_syn.queue_state;
+                        out_queue.queue_state   = 'Unclaimed'::sys_syn.queue_state;
         END IF;
 
         IF NOT _out_table_def.enable_deletes THEN
                 DELETE FROM $$||_out_table_queue_ident||$$ AS out_queue
                 WHERE   out_queue.delta_type    = 'Delete'::sys_syn.delta_type AND
-                        out_queue.queue_state   = 'Unread'::sys_syn.queue_state;
+                        out_queue.queue_state   = 'Unclaimed'::sys_syn.queue_state;
         END IF;
 
         -- Keep track of the last transaction processed.
@@ -4248,7 +4256,7 @@ BEGIN
         DELETE
         FROM    $$||_out_table_baseline_ident||$$       AS out_baseline
         USING   $$||_out_table_queue_ident||$$  AS out_queue
-        WHERE   out_baseline.key        = out_queue.key AND
+        WHERE   out_baseline.id         = out_queue.id AND
                 out_queue.queue_state   = 'Processed'::sys_syn.queue_state AND
                 out_queue.delta_type    = 'Delete'::sys_syn.delta_type;
         IF FOUND THEN _processed_delete = TRUE; END IF;
@@ -4258,66 +4266,66 @@ BEGIN
         WHERE   out_queue.queue_state   = 'Processed'::sys_syn.queue_state AND
                 out_queue.delta_type    = 'Delete'::sys_syn.delta_type;
 
-        /* If ON CONFLICT (key) DO UPDATE does not perform well:
+        /* If ON CONFLICT (id) DO UPDATE does not perform well:
 
         UPDATE  $$||_out_table_baseline_ident||$$ AS out_baseline
         SET     trans_id_in = out_queue.trans_id_in
         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-        WHERE   out_queue.key = out_baseline.key AND
+        WHERE   out_queue.id = out_baseline.id AND
                 out_queue.queue_state = 'Processed'::sys_syn.queue_state;
         IF FOUND THEN _processed_addchange := TRUE; END IF;
 
         INSERT INTO $$||_out_table_baseline_ident||$$
-        SELECT  out_queue.key,          out_queue.trans_id_in
+        SELECT  out_queue.id,           out_queue.trans_id_in
         FROM    $$||_out_table_queue_ident||$$ AS out_queue
         WHERE   out_queue.queue_state = 'Processed'::sys_syn.queue_state AND
                 NOT EXISTS (
                         SELECT
                         FROM    $$||_out_table_baseline_ident||$$ AS out_baseline
-                        WHERE   out_baseline.key = out_queue.key
+                        WHERE   out_baseline.id = out_queue.id
                 );
         IF FOUND THEN _processed_addchange := TRUE; END IF;*/
 
         INSERT INTO $$||_out_table_baseline_ident||$$
-        SELECT  out_queue.key,          out_queue.trans_id_in
+        SELECT  out_queue.id,          out_queue.trans_id_in
         FROM    $$||_out_table_queue_ident||$$ AS out_queue
         WHERE   out_queue.queue_state = 'Processed'::sys_syn.queue_state
-        ON CONFLICT (key) DO UPDATE
+        ON CONFLICT (id) DO UPDATE
         SET     trans_id_in = EXCLUDED.trans_id_in;
         IF FOUND THEN _processed_addchange := TRUE; END IF;
 
         DELETE
         FROM    $$||_out_table_queue_ident||$$  AS out_queue
         USING   $$||_out_table_baseline_ident||$$       AS out_baseline
-        WHERE   out_queue.key           = out_baseline.key AND
+        WHERE   out_queue.id            = out_baseline.id AND
                 out_queue.trans_id_in   = out_baseline.trans_id_in AND
                 out_queue.queue_state   = 'Processed'::sys_syn.queue_state;
 
         IF _out_table_def.enable_changes THEN
                 INSERT INTO $$||_out_table_queue_ident||$$ (
-                        key,                    trans_id_in,
+                        id,                    trans_id_in,
                         delta_type,
                         queue_state,
                         queue_priority
                 )
-                SELECT  out_locked.key,         out_locked.trans_id_in,
+                SELECT  out_locked.id,         out_locked.trans_id_in,
                         'Change'::sys_syn.delta_type,
-                        'Unread'::sys_syn.queue_state,
-                        $$||_out_proc_priority_ident||$$(in_locked.key, 'Change'::sys_syn.delta_type, in_locked.attributes,
+                        'Unclaimed'::sys_syn.queue_state,
+                        $$||_out_proc_priority_ident||$$(in_locked.id, 'Change'::sys_syn.delta_type, in_locked.attributes,
                                 in_locked.no_diff, baseline_data.attributes)
                 FROM    $$||_out_table_locked_ident||$$ AS out_locked JOIN
                         $$||_in_table_ident||$$           AS in_locked ON
                                 in_locked.trans_id_in           = out_locked.trans_id_in AND
-                                in_locked.key                   = out_locked.key JOIN
+                                in_locked.id                    = out_locked.id JOIN
                         $$||_out_table_baseline_ident||$$       AS out_baseline ON
-                                out_baseline.key        = out_locked.key JOIN
+                                out_baseline.id         = out_locked.id JOIN
                         $$||_in_table_ident||$$                 AS baseline_data ON
-                                baseline_data.key       = out_baseline.key
+                                baseline_data.id        = out_baseline.id
                 WHERE   $$||sys_syn.util_record_comparison_code('in_locked','baseline_data',out_table_def,true)||$$ AND
                         NOT EXISTS (
                                 SELECT
                                 FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                                WHERE   out_queue.key = out_locked.key
+                                WHERE   out_queue.id = out_locked.id
                         );
                 IF FOUND THEN _unlocked_change := TRUE; END IF;
         END IF;
@@ -4327,7 +4335,7 @@ BEGIN
         WHERE   EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.key           = out_locked.key AND
+                        WHERE   out_queue.id            = out_locked.id AND
                                 out_queue.trans_id_in   = out_locked.trans_id_in
                 );
 $$;
@@ -4368,9 +4376,9 @@ BEGIN
                                 'ith a non-NULL value.';
                 END IF;
 
-                IF old.queue_state != 'Reading'::sys_syn.queue_state THEN
+                IF old.queue_state != 'Claimed'::sys_syn.queue_state THEN
                     RAISE EXCEPTION 'A record cannot be put on hold before it is read.'
-                            USING HINT = 'Set the queue_state to Reading first, SELECT the data after that, then set the queue_st'||
+                            USING HINT = 'Set the queue_state to Claimed first, SELECT the data after that, then set the queue_st'||
                                 'ate to Hold';
                 END IF;
 
@@ -4388,7 +4396,7 @@ BEGIN
 
                 new.hold_trans_id_last := new.trans_id_out;
 
-        ELSIF   new.queue_state = 'Reading'::sys_syn.queue_state AND
+        ELSIF   new.queue_state = 'Claimed'::sys_syn.queue_state AND
                 new.queue_state IS DISTINCT FROM old.queue_state THEN
 
                 new.trans_id_out := sys_syn.trans_id_get();
@@ -4396,9 +4404,9 @@ BEGIN
         ELSIF   new.queue_state = 'Processed'::sys_syn.queue_state AND
                 new.queue_state IS DISTINCT FROM old.queue_state THEN
 
-                IF old.queue_state != 'Reading'::sys_syn.queue_state THEN
+                IF old.queue_state != 'Claimed'::sys_syn.queue_state THEN
                     RAISE EXCEPTION 'A record cannot be processed before it is read.'
-                            USING HINT = 'Set the queue_state to Reading first, SELECT the data after that, then set the queue_st'||
+                            USING HINT = 'Set the queue_state to Claimed first, SELECT the data after that, then set the queue_st'||
                                 'ate to Processed.';
                 END IF;
 
@@ -4409,18 +4417,18 @@ $$;
         IF out_table_def.out_log_lifetime IS NOT NULL THEN
                 _sql_buffer := _sql_buffer || $$
                 INSERT INTO $$||_out_table_log_ident||$$(
-                        trans_id_in,            key,            trans_id_out,
+                        trans_id_in,            id,             trans_id_out,
                         processed_time,         delta_type,     queue_id)
-                VALUES (new.trans_id_in,        new.key,        new.trans_id_out,
+                VALUES (new.trans_id_in,        new.id,         new.trans_id_out,
                         new.processed_time,     new.delta_type, new.queue_id);
 $$;
         END IF;
         _sql_buffer := _sql_buffer || $$
         END IF;
 
-        IF old.queue_state = 'Reading'::sys_syn.queue_state AND
+        IF old.queue_state = 'Claimed'::sys_syn.queue_state AND
                 new.queue_state IS NOT DISTINCT FROM old.queue_state THEN
-                RAISE EXCEPTION 'Records in the Reading status cannot be updated unless their queue status is changing.'
+                RAISE EXCEPTION 'Records in the Claimed status cannot be updated unless their queue status is changing.'
                         USING HINT = 'Hold off on updating this record until you are ready to change the queue_state.';
         END IF;
 
@@ -4433,11 +4441,11 @@ $$;
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_claim');
         _sql_buffer := $$
 CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(
-        queue_id        smallint DEFAULT NULL,
-        limit_rows      integer DEFAULT NULL,
-        queue_count     smallint DEFAULT NULL,
-        fixed_by_key    boolean DEFAULT false,
-        random_sample   smallint DEFAULT NULL)
+        queue_id        smallint        DEFAULT NULL,
+        limit_rows      integer         DEFAULT NULL,
+        queue_count     smallint        DEFAULT NULL,
+        fixed_by_id     boolean         DEFAULT false,
+        random_sample   smallint        DEFAULT NULL)
         RETURNS boolean
         LANGUAGE plpgsql
         SECURITY DEFINER
@@ -4446,23 +4454,23 @@ CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_na
 DECLARE
         _limit_rows     integer;
         _queue_count    smallint;
-        _fixed_by_key   boolean;
+        _fixed_by_id    boolean;
         _random_sample  smallint;
-        _possible_changes       BOOLEAN := FALSE;
+        _possible_changes BOOLEAN := FALSE;
 BEGIN
         SELECT  COALESCE($$||_function_name_ident||$$.limit_rows,    out_tables_def.claim_limit_rows),
                 COALESCE($$||_function_name_ident||$$.queue_count,   out_tables_def.claim_queue_count),
-                COALESCE($$||_function_name_ident||$$.fixed_by_key,  out_tables_def.claim_fixed_by_key),
+                COALESCE($$||_function_name_ident||$$.fixed_by_id,  out_tables_def.claim_fixed_by_id),
                 COALESCE($$||_function_name_ident||$$.random_sample, out_tables_def.claim_random_sample)
         INTO    _limit_rows,
                 _queue_count,
-                _fixed_by_key,
+                _fixed_by_id,
                 _random_sample
         FROM    sys_syn.out_tables_def
         WHERE   in_table_id     = $$||quote_literal(out_table_def.in_table_id)||$$ AND
                 out_group_id    = $$||quote_literal(out_table_def.out_group_id)||$$;
 
-        IF _queue_count IS NOT NULL AND NOT _fixed_by_key THEN
+        IF _queue_count IS NOT NULL AND NOT _fixed_by_id THEN
                 _limit_rows := LEAST(
                         _limit_rows,
                         ceiling((       SELECT  COUNT(*)
@@ -4475,13 +4483,13 @@ BEGIN
         END IF;
 
         UPDATE  $$||_out_table_queue_ident||$$ AS out_queue
-        SET     queue_state = 'Reading'::sys_syn.queue_state,
+        SET     queue_state = 'Claimed'::sys_syn.queue_state,
                 queue_id = $$||_function_name_ident||$$.queue_id
-        FROM    (       SELECT  lock_queue.key
+        FROM    (       SELECT  lock_queue.id
                         FROM    $$||_out_table_queue_ident||$$ AS lock_queue
-                        WHERE   lock_queue.queue_state = 'Unread'::sys_syn.queue_state AND
+                        WHERE   lock_queue.queue_state = 'Unclaimed'::sys_syn.queue_state AND
                                 (       _queue_count IS NULL OR
-                                        CAST(CAST(('x0' || RIGHT(MD5(lock_queue.key::text), 7)) AS bit(32)) AS int) % _queue_count =
+                                        CAST(CAST(('x0' || RIGHT(MD5(lock_queue.id::text), 7)) AS bit(32)) AS int) % _queue_count =
                                                 $$||_function_name_ident||$$.queue_id
                                 ) AND
                                 (       _random_sample IS NULL OR
@@ -4491,14 +4499,14 @@ BEGIN
                         LIMIT   _limit_rows
                         FOR UPDATE SKIP LOCKED
         ) AS record_locks
-        WHERE   record_locks.key = out_queue.key;
+        WHERE   record_locks.id = out_queue.id;
         IF FOUND THEN _possible_changes := TRUE; END IF;
 
         IF NOT _possible_changes THEN
                 _possible_changes := EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.queue_state = 'Reading'::sys_syn.queue_state AND
+                        WHERE   out_queue.queue_state = 'Claimed'::sys_syn.queue_state AND
                                 out_queue.queue_id IS NOT DISTINCT FROM $$||_function_name_ident||$$.queue_id
                         LIMIT 1
                 );
@@ -4524,11 +4532,11 @@ BEGIN
                 NOT EXISTS (
                         SELECT
                         FROM    $$||_out_table_queue_ident||$$ AS out_queue
-                        WHERE   out_queue.key = out_queue_bulk.key
+                        WHERE   out_queue.id = out_queue_bulk.id
                 );
         IF FOUND THEN
-                RAISE EXCEPTION '1 or more keys were not found.'
-                USING HINT = 'Make sure that references to keys are removed after the queue table has been updated.';
+                RAISE EXCEPTION '1 or more ids were not found.'
+                USING HINT = 'Make sure that references to ids are removed after the queue table has been updated.';
         END IF;
 
         WITH updating_records AS (
@@ -4546,7 +4554,7 @@ BEGIN
                 queue_priority = updating_records.queue_priority,
                 processed_time = updating_records.processed_time
         FROM    updating_records
-        WHERE   out_queue.key = updating_records.key;
+        WHERE   out_queue.id = updating_records.id;
 
         RETURN FOUND;
 END;
@@ -4652,12 +4660,12 @@ CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_na
 DECLARE
         _queue_pid_count        bigint;
         _claim_queue_count      smallint;
-        _claim_fixed_by_key     boolean;
+        _claim_fixed_by_id      boolean;
         _queue_pid_used_age     interval;
         _used_age               interval;
 BEGIN
-        SELECT  claim_queue_count,      claim_fixed_by_key,     queue_pid_used_age
-        INTO    _claim_queue_count,     _claim_fixed_by_key,    _queue_pid_used_age
+        SELECT  claim_queue_count,      claim_fixed_by_id,      queue_pid_used_age
+        INTO    _claim_queue_count,     _claim_fixed_by_id,     _queue_pid_used_age
         FROM    sys_syn.out_tables_def
         WHERE   in_table_id     = $$||quote_literal(out_table_def.in_table_id)||$$ AND
                 out_group_id    = $$||quote_literal(out_table_def.out_group_id)||$$;
@@ -4685,7 +4693,7 @@ BEGIN
                         USING HINT = 'Health data on maximum used age requires an interval for the maximum used age allowable.';
                 END IF;
 
-                IF _claim_fixed_by_key OR _claim_queue_count IS NOT NULL THEN
+                IF _claim_fixed_by_id OR _claim_queue_count IS NOT NULL THEN
                         SELECT  clock_timestamp() - MIN(queue_pid.last_used)
                         INTO    _used_age
                         FROM    $$||_out_table_queue_pid_ident||$$ AS queue_pid;
@@ -4718,15 +4726,15 @@ CREATE FUNCTION sys_syn.util_out_table_exists_code(out_table_def sys_syn.out_tab
         LANGUAGE plpgsql
         AS $_$
 DECLARE
-        _sql_buffer TEXT;
-        _indent_sql TEXT;
+        _sql_buffer                     TEXT;
+        _indent_sql                     TEXT;
         --_in_table_def sys_syn.in_tables_def;
-        _out_table_baseline_ident TEXT;
-        _out_table_locked_ident TEXT;
-        _out_table_orphaned_ident TEXT;
-        _out_table_queue_ident TEXT;
-        _out_table_temp_ident TEXT;
-        _out_table_log_ident TEXT;
+        _out_table_baseline_ident       TEXT;
+        _out_table_locked_ident         TEXT;
+        _out_table_orphaned_ident       TEXT;
+        _out_table_queue_ident          TEXT;
+        _out_table_temp_ident           TEXT;
+        _out_table_log_ident            TEXT;
 BEGIN
         /*_in_table_def := (
                 SELECT  in_tables_def
@@ -4752,37 +4760,37 @@ BEGIN
 $$ || _indent_sql || $$NOT EXISTS (
 $$ || _indent_sql || $$        SELECT
 $$ || _indent_sql || $$        FROM    $$||_out_table_baseline_ident||$$ AS out_baseline
-$$ || _indent_sql || $$        WHERE   out_baseline.key                = in_data.key AND
+$$ || _indent_sql || $$        WHERE   out_baseline.id                 = in_data.id AND
 $$ || _indent_sql || $$                out_baseline.trans_id_in        = in_data.trans_id_in
 $$ || _indent_sql || $$) AND
 $$ || _indent_sql || $$NOT EXISTS (
 $$ || _indent_sql || $$        SELECT
 $$ || _indent_sql || $$        FROM    $$||_out_table_locked_ident||$$ AS out_locked
-$$ || _indent_sql || $$        WHERE   out_locked.key          = in_data.key AND
+$$ || _indent_sql || $$        WHERE   out_locked.id           = in_data.id AND
 $$ || _indent_sql || $$                out_locked.trans_id_in  = in_data.trans_id_in
 $$ || _indent_sql || $$) AND
 $$ || _indent_sql || $$NOT EXISTS (
 $$ || _indent_sql || $$        SELECT
 $$ || _indent_sql || $$        FROM    $$||_out_table_orphaned_ident||$$ AS out_orphaned
-$$ || _indent_sql || $$        WHERE   out_orphaned.key                = in_data.key AND
+$$ || _indent_sql || $$        WHERE   out_orphaned.id                 = in_data.id AND
 $$ || _indent_sql || $$                out_orphaned.trans_id_in        = in_data.trans_id_in
 $$ || _indent_sql || $$) AND
 $$ || _indent_sql || $$NOT EXISTS (
 $$ || _indent_sql || $$        SELECT
 $$ || _indent_sql || $$        FROM    $$||_out_table_queue_ident||$$ AS out_queue
-$$ || _indent_sql || $$        WHERE   out_queue.key           = in_data.key AND
+$$ || _indent_sql || $$        WHERE   out_queue.id            = in_data.id AND
 $$ || _indent_sql || $$                out_queue.trans_id_in   = in_data.trans_id_in
 $$ || _indent_sql || $$) AND
 $$ || _indent_sql || $$NOT EXISTS (
 $$ || _indent_sql || $$        SELECT
 $$ || _indent_sql || $$        FROM    $$||_out_table_temp_ident||$$ AS out_temp
-$$ || _indent_sql || $$        WHERE   out_temp.key            = in_data.key AND
+$$ || _indent_sql || $$        WHERE   out_temp.id             = in_data.id AND
 $$ || _indent_sql || $$                out_temp.trans_id_in    = in_data.trans_id_in
 $$ || _indent_sql || $$) AND
 $$ || _indent_sql || $$NOT EXISTS (
 $$ || _indent_sql || $$        SELECT
 $$ || _indent_sql || $$        FROM    $$||_out_table_log_ident||$$ AS out_log
-$$ || _indent_sql || $$        WHERE   out_log.key            = in_data.key AND
+$$ || _indent_sql || $$        WHERE   out_log.id             = in_data.id AND
 $$ || _indent_sql || $$                out_log.trans_id_in    = in_data.trans_id_in
 $$ || _indent_sql || $$)$$;
 
@@ -4796,8 +4804,8 @@ CREATE FUNCTION sys_syn.util_out_tables_exists_code(in_table_def sys_syn.in_tabl
     LANGUAGE plpgsql
     AS $$
 DECLARE
-        _sql_buffer TEXT;
-        _out_table_def sys_syn.out_tables_def;
+        _sql_buffer     TEXT;
+        _out_table_def  sys_syn.out_tables_def;
 BEGIN
         _sql_buffer := '';
 
@@ -4823,9 +4831,9 @@ CREATE FUNCTION sys_syn.util_out_tables_orphaned_code(out_table_def sys_syn.out_
     AS $_$
 DECLARE
         _sql_buffer                     TEXT;
-        _foreign_key_loop               RECORD;
+        _foreign_id_loop                RECORD;
         _foreign_column_loop            sys_syn.in_foreign_keys;
-        _add_key_delimiter              BOOLEAN;
+        _add_id_delimiter               BOOLEAN;
         _add_column_delimiter           BOOLEAN;
         _out_table_orphaned_ident       TEXT;
         _out_table_temp_ident           TEXT;
@@ -4840,16 +4848,16 @@ DECLARE
         _primary_column_column_type     sys_syn.in_column_type;
 BEGIN
         _sql_buffer                     := '';
-        _add_key_delimiter              := FALSE;
+        _add_id_delimiter               := FALSE;
         _foreign_data_table_needed      := FALSE;
 
-        FOR     _foreign_key_loop IN
+        FOR     _foreign_id_loop IN
         SELECT  in_foreign_keys.primary_table_id,       in_foreign_keys.foreign_key_index,
                 bool_or(
                         sys_syn.util_column_name_to_in_column_type(
                                 in_foreign_keys.primary_table_id,
                                 in_foreign_keys.primary_column_name)
-                        != 'Key'::sys_syn.in_column_type) AS primary_data_table_needed
+                        != 'ID'::sys_syn.in_column_type) AS primary_data_table_needed
         FROM    sys_syn.in_foreign_keys JOIN
                 sys_syn.out_tables_def ON
                         out_tables_def.in_table_id = in_foreign_keys.primary_table_id
@@ -4858,25 +4866,25 @@ BEGIN
         GROUP BY primary_table_id,                      in_foreign_keys.foreign_key_index
         LOOP
 
-                IF _add_key_delimiter THEN
+                IF _add_id_delimiter THEN
                         _sql_buffer := _sql_buffer || $$ OR
                 $$;
                 ELSE
-                        _add_key_delimiter := TRUE;
+                        _add_id_delimiter := TRUE;
                 END IF;
 
-                IF _foreign_key_loop.primary_data_table_needed THEN
+                IF _foreign_id_loop.primary_data_table_needed THEN
 
                         _primary_in_table_ident := (
                                 SELECT  quote_ident(in_tables_def.schema::text) || '.' ||
                                         quote_ident(in_tables_def.in_table_id||'_in')
                                 FROM    sys_syn.in_tables_def
-                                WHERE   in_tables_def.in_table_id = _foreign_key_loop.primary_table_id
+                                WHERE   in_tables_def.in_table_id = _foreign_id_loop.primary_table_id
                         );
 
                         _primary_data_table_join := $$ JOIN
                                         $$ || _primary_in_table_ident || $$ AS in_primary_baseline ON
-                                                in_primary_baseline.key = out_primary_baseline.key$$;
+                                                in_primary_baseline.id = out_primary_baseline.id$$;
 
                 ELSE
                         _primary_data_table_join := '';
@@ -4886,10 +4894,10 @@ BEGIN
                         SELECT
                         FROM    $$ || (
                                 SELECT  quote_ident(schema::text) || '.' ||
-                                        quote_ident(_foreign_key_loop.primary_table_id || '_' ||
+                                        quote_ident(_foreign_id_loop.primary_table_id || '_' ||
                                         out_table_def.out_group_id || '_baseline')
                                 FROM    sys_syn.out_tables_def AS primary_out_def
-                                WHERE   primary_out_def.in_table_id     = _foreign_key_loop.primary_table_id AND
+                                WHERE   primary_out_def.in_table_id     = _foreign_id_loop.primary_table_id AND
                                         primary_out_def.out_group_id    = out_table_def.out_group_id) ||
                         $$ AS out_primary_baseline$$ || _primary_data_table_join || $$
                         WHERE   $$;
@@ -4899,9 +4907,9 @@ BEGIN
                 FOR     _foreign_column_loop IN
                 SELECT  in_foreign_keys.* -- Why is .* needed for this loop and not needed in similar loops?
                 FROM    sys_syn.in_foreign_keys
-                WHERE   in_foreign_keys.primary_table_id        = _foreign_key_loop.primary_table_id AND
+                WHERE   in_foreign_keys.primary_table_id        = _foreign_id_loop.primary_table_id AND
                         in_foreign_keys.foreign_table_id        = out_table_def.in_table_id AND
-                        in_foreign_keys.foreign_key_index       = _foreign_key_loop.foreign_key_index
+                        in_foreign_keys.foreign_key_index       = _foreign_id_loop.foreign_key_index
                 LOOP
 
                         IF _add_column_delimiter THEN
@@ -4914,7 +4922,7 @@ BEGIN
                         _primary_column_column_type := sys_syn.util_column_name_to_in_column_type(
                                 _foreign_column_loop.primary_table_id, _foreign_column_loop.primary_column_name);
 
-                        IF _primary_column_column_type = 'Key'::sys_syn.in_column_type THEN
+                        IF _primary_column_column_type = 'ID'::sys_syn.in_column_type THEN
                                 _primary_column_table_ident     := 'out_primary_baseline';
                         ELSE
                                 _primary_column_table_ident     := 'in_primary_baseline';
@@ -4924,7 +4932,7 @@ BEGIN
                         _foreign_column_column_type := sys_syn.util_column_name_to_in_column_type(
                                 _foreign_column_loop.foreign_table_id, _foreign_column_loop.foreign_column_name);
 
-                        IF _foreign_column_column_type = 'Key'::sys_syn.in_column_type THEN
+                        IF _foreign_column_column_type = 'ID'::sys_syn.in_column_type THEN
                                 _foreign_column_table_ident     := 'out_temp';
                         ELSE
                                 _foreign_column_table_ident     := 'in_temp';
@@ -4971,7 +4979,7 @@ BEGIN
                 _foreign_data_table_join := $$ JOIN
                         $$ || _in_table_ident || $$ AS in_temp ON
                                 in_temp.trans_id_in     = out_temp.trans_id_in AND
-                                in_temp.key             = out_temp.key$$;
+                                in_temp.id              = out_temp.id$$;
         ELSE
                 _foreign_data_table_join := '';
         END IF;
@@ -4982,14 +4990,14 @@ BEGIN
         SELECT  out_temp.*
         FROM    $$||_out_table_temp_ident||$$ AS out_temp$$ || _foreign_data_table_join || $$
         WHERE   $$||_sql_buffer||$$
-        ON CONFLICT (key) DO UPDATE
+        ON CONFLICT (id) DO UPDATE
         SET     trans_id_in = EXCLUDED.trans_id_in;
 
         DELETE FROM $$||_out_table_temp_ident||$$ AS out_temp
         WHERE   EXISTS (
                         SELECT
                         FROM    $$||_out_table_orphaned_ident||$$ AS out_orphaned
-                        WHERE   out_orphaned.key = out_temp.key
+                        WHERE   out_orphaned.id = out_temp.id
                 );
 
         $$;
@@ -5003,14 +5011,14 @@ CREATE OR REPLACE FUNCTION sys_syn.pre_pull_add_sql(
         relation                        regclass,
         in_group_id                     text,
         schema                          regnamespace DEFAULT NULL,
-        in_pull_id                      text DEFAULT NULL,
-        full_prepull_id                 text DEFAULT NULL,
-        changes_prepull_id              text DEFAULT NULL,
-        in_table_id                     text DEFAULT NULL,
-        key_columns                     name[] DEFAULT NULL::name[],
-        no_diff_columns                 name[] DEFAULT NULL::name[],
-        omit_columns                    name[] DEFAULT NULL::name[],
-        limit_to_columns                name[] DEFAULT NULL::name[]
+        in_pull_id                      text    DEFAULT NULL,
+        full_prepull_id                 text    DEFAULT NULL,
+        changes_prepull_id              text    DEFAULT NULL,
+        in_table_id                     text    DEFAULT NULL,
+        id_columns                      name[]  DEFAULT NULL::name[],
+        no_diff_columns                 name[]  DEFAULT NULL::name[],
+        omit_columns                    name[]  DEFAULT NULL::name[],
+        limit_to_columns                name[]  DEFAULT NULL::name[]
 )
         RETURNS text
         LANGUAGE plpgsql COST 10
@@ -5031,7 +5039,7 @@ DECLARE
         _column                 pg_catalog.pg_attribute%ROWTYPE;
         _column_name            TEXT;
         _format_type            TEXT;
-        _sql_key_columns        TEXT;
+        _sql_id_columns         TEXT;
         _return                 TEXT;
 BEGIN
         IF _name_schema IS NULL THEN
@@ -5054,8 +5062,8 @@ BEGIN
                 _in_table_id := _full_prepull_id;
         END IF;
 
-        IF key_columns IS NULL THEN
-                _sql_key_columns := (
+        IF id_columns IS NULL THEN
+                _sql_id_columns := (
                         SELECT  'ARRAY[' || array_to_string(array_agg(quote_literal(attname) ORDER BY pg_attribute.attnum), ',') ||
                                                         ']'
                         FROM    pg_catalog.pg_attribute JOIN pg_catalog.pg_index ON
@@ -5067,15 +5075,15 @@ BEGIN
                                 pg_attribute.attnum = ANY(pg_index.indkey)
                 );
 
-                IF _sql_key_columns IS NULL THEN
-                        RAISE EXCEPTION 'The relation "%" has no primary key and key_columns is null.',
+                IF _sql_id_columns IS NULL THEN
+                        RAISE EXCEPTION 'The relation "%" has no primary key and id_columns is null.',
                                 pre_pull_add_sql.relation::text
-                        USING HINT = 'Specify the key columns in the key_columns parameter or set a primary key on the relation.';
+                        USING HINT = 'Specify the ID columns in the id_columns parameter or set a primary key on the relation.';
                 END IF;
         ELSE
-                _sql_key_columns := (
+                _sql_id_columns := (
                         SELECT  'ARRAY[' || array_to_string(array_agg(quote_literal(columns_array.*)), ',') || ']'
-                        FROM    unnest(pre_pull_add_sql.key_columns) AS columns_array
+                        FROM    unnest(pre_pull_add_sql.id_columns) AS columns_array
                 );
         END IF;
 
@@ -5189,7 +5197,7 @@ SELECT sys_syn.in_table_add_sql(
         relation        => '$$ || _name_unlogged_full || $$'::regclass,
         in_group_id     => $$ || quote_literal(in_group_id) || $$,
         schema          => $$ || quote_literal(_name_schema) || $$,
-        key_columns     => $$ || _sql_key_columns || $$,
+        id_columns      => $$ || _sql_id_columns || $$,
         no_diff_columns => NULL,
         omit_columns    => ARRAY[]::TEXT[],
         limit_to_columns=> NULL,
@@ -5209,7 +5217,7 @@ ALTER FUNCTION sys_syn.pre_pull_add_sql(
         full_prepull_id         text,
         changes_prepull_id      text,
         in_table_id             text,
-        key_columns             name[],
+        id_columns              name[],
         no_diff_columns         name[],
         omit_columns            name[],
         limit_to_columns        name[])
@@ -5705,12 +5713,12 @@ CREATE VIEW sys_syn.out_queue_data_view_columns_view AS
 SELECT  out_tables_def.in_table_id,
         out_tables_def.out_group_id,
         pg_attribute.attname AS column_name,
-        CASE    WHEN pg_attribute.attname IN ('sys_syn_key', 'sys_syn_trans_id_in', 'sys_syn_delta_type', 'sys_syn_queue_state',
-                        'sys_syn_queue_id', 'sys_syn_queue_priority', 'sys_syn_reading_key', 'sys_syn_hold_updated',
+        CASE    WHEN pg_attribute.attname IN ('sys_syn_id', 'sys_syn_trans_id_in', 'sys_syn_delta_type', 'sys_syn_queue_state',
+                        'sys_syn_queue_id', 'sys_syn_queue_priority', 'sys_syn_reading_id', 'sys_syn_hold_updated',
                         'sys_syn_hold_trans_id_first', 'sys_syn_hold_trans_id_last', 'sys_syn_hold_reason_count',
                         'sys_syn_hold_reason_id', 'sys_syn_hold_reason_text', 'sys_syn_trans_id_out', 'sys_syn_processed_time',
                         'sys_syn_attribute_array_ordinal') THEN
-                        'SysSyn'::sys_syn.in_column_type
+                        NULL::sys_syn.in_column_type
                 ELSE    sys_syn.util_column_name_to_in_column_type(out_tables_def.in_table_id, pg_attribute.attname)
         END AS in_column_type,
         format_type(pg_attribute.atttypid, pg_attribute.atttypmod) AS format_type,
@@ -5734,10 +5742,10 @@ ORDER BY pg_attribute.attnum;
 ALTER TABLE sys_syn.out_queue_data_view_columns_view OWNER TO postgres;
 
 CREATE OR REPLACE FUNCTION sys_syn.util_out_queue_data_view_columns_format (
-        in_table_id text,
-        out_group_id text,
-        in_column_type sys_syn.in_column_type,
-        format_text text)
+        in_table_id     text,
+        out_group_id    text,
+        in_column_type  sys_syn.in_column_type,
+        format_text     text)
   RETURNS text AS
 $BODY$
 DECLARE
@@ -5765,7 +5773,12 @@ END
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
-ALTER FUNCTION sys_syn.util_out_queue_data_view_columns_format(text, text, sys_syn.in_column_type, text) OWNER TO postgres;
+ALTER FUNCTION sys_syn.util_out_queue_data_view_columns_format (
+        in_table_id text,
+        out_group_id text,
+        in_column_type sys_syn.in_column_type,
+        format_text text)
+        OWNER TO postgres;
 
 
 CREATE VIEW sys_syn.in_foreign_keys_view AS
@@ -5796,50 +5809,6 @@ SELECT  in_table_columns_def.in_table_id,
 FROM    sys_syn.in_table_columns_def;
 ALTER TABLE sys_syn.in_table_columns_view OWNER TO postgres;
 
-
-/*
-CREATE VIEW sys_syn.foreign_keys_view AS
-SELECT  parent_namespace.nspname AS parent_schema,
-        parent_class.relname AS parent_table,
-        child_namespace.nspname AS child_schema,
-        child_class.relname AS child_table,
-        foreign_ids.constraint_name,
-        foreign_ids.key_column_index,
-        parent_attribute.attname AS parent_column,
-        child_attribute.attname AS child_column
-FROM    (
-                SELECT  child_constraint.confrelid,
-                        child_constraint.conrelid,
-                        child_constraint.conname AS constraint_name,
-                        array_position(child_constraint.conkey, unnest(child_constraint.conkey)) AS key_column_index,
-                        unnest(child_constraint.confkey) AS parent_attnum,
-                        unnest(child_constraint.conkey) AS child_attnum
-                FROM    pg_class AS child_class JOIN
-                        pg_constraint AS child_constraint ON
-                                child_constraint.conrelid = child_class.oid
-                WHERE   child_constraint.contype = 'f'
-        ) AS foreign_ids JOIN
-        pg_attribute AS parent_attribute ON
-                parent_attribute.attrelid = foreign_ids.confrelid AND
-                parent_attribute.attnum = foreign_ids.parent_attnum AND
-                parent_attribute.attnum > 0 AND
-                NOT parent_attribute.attisdropped JOIN
-        pg_class AS parent_class ON
-                parent_class.oid = foreign_ids.confrelid JOIN
-        pg_class AS child_class ON
-                child_class.oid = foreign_ids.conrelid JOIN
-        pg_attribute AS child_attribute ON
-                child_attribute.attrelid = foreign_ids.conrelid AND
-                child_attribute.attnum = foreign_ids.child_attnum AND
-                child_attribute.attnum > 0 AND
-                NOT child_attribute.attisdropped JOIN
-        pg_namespace AS child_namespace ON
-                child_class.relnamespace = child_namespace.oid JOIN
-        pg_namespace AS parent_namespace ON
-                parent_class.relnamespace = parent_namespace.oid
-ORDER BY 1, 2, 3, 4, 5, 6;
-ALTER TABLE sys_syn.foreign_keys_view OWNER TO postgres;
-*/
 
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_column_transforms', $$WHERE rule_group_id NOT LIKE 'sys_syn-%'$$);
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_foreign_keys', '');

@@ -5,16 +5,16 @@ CREATE EXTENSION sys_syn;
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 CREATE TABLE user_data.test_table (
-        test_table_key integer NOT NULL,
+        test_table_id integer NOT NULL,
         test_table_text text,
-        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key));
+        CONSTRAINT test_table_pid PRIMARY KEY (test_table_id));
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
                                            pre_pull_add_sql                                            
 -------------------------------------------------------------------------------------------------------
  CREATE UNLOGGED TABLE user_data.test_table_prepull_full (                                            +
          trans_id_in sys_syn.trans_id DEFAULT sys_syn.trans_id_get() NOT NULL,                        +
-         test_table_key  integer,                                                                     +
+         test_table_id   integer,                                                                     +
          test_table_text text                                                                         +
  );                                                                                                   +
  INSERT INTO sys_syn.prepulls_def(                                                                    +
@@ -44,10 +44,10 @@ SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
                                                                                                       +
          INSERT INTO user_data.test_table_prepull_full (                                              +
                  trans_id_in,                                                                         +
-                 test_table_key,                                                                      +
+                 test_table_id,                                                                       +
                  test_table_text)                                                                     +
          SELECT  sys_syn.trans_id_get(),                                                              +
-                 test_table_key,                                                                      +
+                 test_table_id,                                                                       +
                  test_table_text                                                                      +
          FROM    user_data.test_table;                                                                +
          IF FOUND THEN _possible_changes := TRUE; END IF;                                             +
@@ -68,7 +68,7 @@ SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
          relation        => 'user_data.test_table_prepull_full'::regclass,                            +
          in_group_id     => 'in',                                                                     +
          schema          => 'user_data',                                                              +
-         key_columns     => ARRAY['test_table_key'],                                                  +
+         id_columns      => ARRAY['test_table_id'],                                                   +
          no_diff_columns => NULL,                                                                     +
          omit_columns    => ARRAY[]::TEXT[],                                                          +
          limit_to_columns=> NULL,                                                                     +
