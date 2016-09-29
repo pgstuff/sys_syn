@@ -22,7 +22,7 @@ SELECT sys_syn.in_table_add (
                 'in',
                 NULL,
                 ARRAY[
-                       $COL$("test_table_id","integer",ID,"in_source.test_table_id",,,,)$COL$,
+                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
                        $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,)$COL$,
                        $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
                 ]::sys_syn.create_in_column[],
@@ -60,10 +60,10 @@ SELECT user_data.test_table_vacuum();
 
 DELETE FROM user_data.test_table WHERE test_table_id = 1;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.test_table_pull(FALSE);
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 3;
 SELECT user_data.test_table_out_move();
 
 SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;

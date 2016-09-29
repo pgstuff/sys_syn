@@ -16,7 +16,7 @@ SELECT sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
                  in_group_id     => 'in',                                                           +
                  in_pull_id      => NULL,                                                           +
                  in_columns      => ARRAY[                                                          +
-                        $COL$("test_data_id","integer",ID,"in_source.test_data_id",,,,)$COL$,       +
+                        $COL$("test_data_id","integer",Id,"in_source.test_data_id",,,,)$COL$,       +
                         $COL$("test_data_text","text",Attribute,"in_source.test_data_text",,,,)$COL$+
                  ]::sys_syn.create_in_column[],                                                     +
                  full_table_reference    => 'test_data',                                            +

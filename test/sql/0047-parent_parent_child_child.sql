@@ -42,7 +42,7 @@ SELECT sys_syn.in_table_add (
                 in_group_id     => 'in',
                 in_pull_id      => NULL,
                 in_columns      => ARRAY[
-                       $COL$("child_1_id","integer",ID,"in_source.child_1_id",,,,)$COL$,
+                       $COL$("child_1_id","integer",Id,"in_source.child_1_id",,,,)$COL$,
                        $COL$("parent_1_id","integer",Attribute,"in_source.parent_1_id",,1,"parent_1","parent_1_id")$COL$
                 ]::sys_syn.create_in_column[],
                 full_table_reference    => 'user_data.child_1'
@@ -54,7 +54,7 @@ SELECT sys_syn.in_table_add (
                 in_group_id     => 'in',
                 in_pull_id      => NULL,
                 in_columns      => ARRAY[
-                       $COL$("child_2_id","integer",ID,"in_source.child_2_id",,,,)$COL$,
+                       $COL$("child_2_id","integer",Id,"in_source.child_2_id",,,,)$COL$,
                        $COL$("parent_1_id","integer",Attribute,"in_source.parent_1_id",,1,"parent_1","parent_1_id")$COL$,
                        $COL$("parent_2_id","integer",Attribute,"in_source.parent_2_id",,2,"parent_2","parent_2_id")$COL$
                 ]::sys_syn.create_in_column[],
@@ -94,12 +94,12 @@ SELECT user_data.parent_1_pull(FALSE);
 SELECT user_data.parent_1_out_move();
 SELECT id, delta_type, queue_state FROM user_data.parent_1_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.child_1_pull(FALSE);
 SELECT user_data.child_1_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_1_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 3;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
@@ -109,12 +109,12 @@ UPDATE user_data.parent_1_out_queue SET queue_state = 'Hold'::sys_syn.queue_stat
 SELECT user_data.parent_1_out_processed();
 SELECT id, delta_type, queue_state FROM user_data.parent_1_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 4;
 SELECT user_data.child_1_pull(FALSE);
 SELECT user_data.child_1_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_1_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 5;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
@@ -124,22 +124,22 @@ UPDATE user_data.parent_1_out_queue SET queue_state = 'Processed'::sys_syn.queue
 SELECT user_data.parent_1_out_processed();
 SELECT id, delta_type, queue_state FROM user_data.parent_1_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 6;
 SELECT user_data.child_1_pull(FALSE);
 SELECT user_data.child_1_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_1_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 7;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 8;
 SELECT user_data.parent_2_pull(FALSE);
 SELECT user_data.parent_2_out_move();
 SELECT id, delta_type, queue_state FROM user_data.parent_2_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 9;
 SELECT user_data.child_2_pull(FALSE);
 SELECT user_data.child_2_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_2_out_queue;

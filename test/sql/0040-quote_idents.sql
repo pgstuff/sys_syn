@@ -9,9 +9,9 @@ CREATE SCHEMA "User Data"
     AUTHORIZATION postgres;
 
 CREATE TABLE "User Data"."Test Table" (
-        "Test Table ID" integer NOT NULL,
+        "Test Table Id" integer NOT NULL,
         "Test Table Text" text,
-        CONSTRAINT "Test Table_pid" PRIMARY KEY ("Test Table ID"));
+        CONSTRAINT "Test Table_pid" PRIMARY KEY ("Test Table Id"));
 
 INSERT INTO sys_syn.in_groups_def VALUES ('In Group');
 
@@ -22,7 +22,7 @@ DO $$BEGIN
 END$$;
 
 INSERT INTO "User Data"."Test Table"(
-        "Test Table ID", "Test Table Text")
+        "Test Table Id", "Test Table Text")
 VALUES (1,              'test_data v1');
 
 INSERT INTO sys_syn.out_groups_def VALUES ('Out Group');
@@ -35,8 +35,8 @@ END$$;
 
 SELECT "User Data"."Test Table_pull"(FALSE);
 SELECT "User Data"."Test Table_Out Group_move"();
-UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id)."Test Table ID" = 1;
-UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id)."Test Table ID" = 1;
+UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
+UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
 SELECT "User Data"."Test Table_Out Group_processed"();
 
 SELECT  out_baseline.id,

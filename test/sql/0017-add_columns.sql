@@ -50,7 +50,7 @@ INSERT INTO user_data.test_table(
         test_table_id, test_table_text,        test_table_date,        test_table_datetime)
 VALUES (2,              'test_data 2',          '6283-01-08',           '6283-01-08 05:30:07');
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
 

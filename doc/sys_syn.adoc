@@ -139,7 +139,9 @@ You may add an input table immediately using:
 EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
 ----
 
-IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key by adding "`, id_columns => ARRAY['id_col_name_here']`" to the `sys_syn.in_table_add_sql` function call.
+IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key or ID by adding "`, id_columns => ARRAY['id_col_name_here']`" to the `sys_syn.in_table_add_sql` function call.
+
+TIP:  If an object is composed of multiple rows because the rows represent versions of the same object, then leave the timestamp field off of the Id and mark the timestamp as an Attribute with an array_order of 1.  This groups the object's rows into a single queue record and allows you to process the object change with the complete history.  Enable the data_view to see the versions as distinct rows with a single queue record.  This ensures that the object is either committed as a whole, or not at all.
 
 You can also generate the function call to add the table by specifying just the table and `in_group`.
 
@@ -158,7 +160,7 @@ SELECT sys_syn.in_table_add (
         in_group_id     => 'in',
         in_pull_id      => NULL,
         in_columns      => ARRAY[
-                $COL$("test_table_id","integer",ID,"in_source.test_table_id",,,,)$COL$,
+                $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
                 $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
         ]::sys_syn.create_in_column[],
         full_table_reference    => 'user_data.test_table',
@@ -344,7 +346,7 @@ If the object changes value while in the `Hold` status, then its queue status is
 
 === Testing Performance Enhancement
 
-Optionally, you can initialize a database server in shared memory to avoid disk I/O.
+Optionally, you can initialize a database server in shared memory to avoid disk I/O.  This useful if you need to run the tests frequently.
 
 
 
@@ -360,6 +362,7 @@ fsync = off
 synchronous_commit = off
 full_page_writes = off
 random_page_cost = 1.0
+update_process_title = off
 EOF
 echo "CREATE ROLE $USER SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN" | postmaster --single -D "$PGDATA" -F -h "" -k "$PGDATA" postgres && echo
 postmaster -D "$PGDATA" -F -h "" -k "$PGDATA" & sleep 2; echo

@@ -48,7 +48,7 @@ SET     enable_adds     = TRUE
 WHERE   in_table_id     = 'test_table' AND
         out_group_id    = 'out';
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
 
@@ -69,7 +69,7 @@ FROM    user_data.test_table_out_baseline out_baseline
 
 UPDATE user_data.test_table SET test_table_text = 'test_data_1 v2' WHERE test_table_id = 1;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 3;
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
 
@@ -83,7 +83,7 @@ SET     enable_changes  = TRUE
 WHERE   in_table_id     = 'test_table' AND
         out_group_id    = 'out';
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 4;
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
 
@@ -98,7 +98,7 @@ SELECT user_data.test_table_out_processed();
 
 DELETE FROM user_data.test_table WHERE test_table_id = 2;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 5;
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
 
@@ -112,7 +112,7 @@ SET     enable_deletes  = TRUE
 WHERE   in_table_id     = 'test_table' AND
         out_group_id    = 'out';
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 6;
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move();
 

@@ -50,7 +50,7 @@ SELECT user_data.test_table_vacuum();
 SELECT * FROM user_data.test_table_in;
  trans_id_in | id  | attributes  | no_diff 
 -------------+-----+-------------+---------
-           2 | (2) | (test_data) | 
+           1 | (2) | (test_data) | 
 (1 row)
 
 ROLLBACK;

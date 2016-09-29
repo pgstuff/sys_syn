@@ -23,7 +23,7 @@ SELECT sys_syn.in_table_add (
                 'in',
                 NULL,
                 ARRAY[
-                       $COL$("test_table_id","integer",ID,"in_source.test_table_id",,,,)$COL$,
+                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
                        $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,)$COL$,
                        $COL$("test_table_date","date",Attribute,"in_source.test_table_date",,,,)$COL$,
                        $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$

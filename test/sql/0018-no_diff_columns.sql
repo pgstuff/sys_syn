@@ -50,7 +50,7 @@ SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
 SELECT user_data.test_table_pull(FALSE);
 
 SELECT  (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
@@ -62,7 +62,7 @@ SELECT  out_queue.id,
         out_queue.delta_type,
         out_queue.queue_state,
         (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
@@ -75,7 +75,7 @@ SELECT user_data.test_table_out_processed();
 
 SELECT  out_baseline.id,
         (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*

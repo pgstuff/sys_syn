@@ -21,7 +21,7 @@ SELECT sys_syn.in_table_add (
                 'in',
                 NULL,
                 ARRAY[
-                       $COL$("test_table_id","integer",ID,"in_source.test_table_id",,,,)$COL$,
+                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
                        $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
                 ]::sys_syn.create_in_column[],
                 'user_data.test_table',

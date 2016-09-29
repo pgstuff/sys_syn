@@ -54,7 +54,7 @@ SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
 SELECT user_data.test_table_pull(FALSE);
 
 SELECT  (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
@@ -66,7 +66,7 @@ SELECT  out_queue.id,
         out_queue.delta_type,
         out_queue.queue_state,
         (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
@@ -79,7 +79,7 @@ SELECT user_data.test_table_out_processed();
 
 SELECT  out_baseline.id,
         (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
@@ -89,11 +89,11 @@ FROM    user_data.test_table_out_baseline AS out_baseline
 UPDATE user_data.test_table SET no_diff_text = 'changed, no diff' WHERE test_table_id = 1;
 UPDATE user_data.test_table SET delete_row_indicator = TRUE WHERE test_table_id = 2;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.test_table_pull(FALSE);
 
 SELECT  (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
@@ -106,7 +106,7 @@ SELECT  out_queue.id,
         out_queue.delta_type,
         out_queue.queue_state,
         (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
@@ -119,7 +119,7 @@ SELECT user_data.test_table_out_processed();
 
 SELECT  out_baseline.id,
         (in_data.id).*,
-        '<ID   Attr>' AS id_attr,
+        '<Id   Attr>' AS id_attr,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*

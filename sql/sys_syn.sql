@@ -12,8 +12,22 @@ DO $$BEGIN
         ALTER DOMAIN sys_syn.trans_id OWNER TO postgres;
 END$$;
 
+DO $$BEGIN
+    EXECUTE 'ALTER DATABASE '|| quote_ident(current_database()) || '
+  SET sys_syn.trans_id_curr = 0;';
+END$$;
+
+SET SESSION sys_syn.trans_id_curr = 0;
+
+
+CREATE TYPE sys_syn.trans_id_method AS ENUM (
+        'seq',
+        'txid'
+);
+ALTER TYPE sys_syn.trans_id_method OWNER TO postgres;
+
 CREATE TYPE sys_syn.in_column_type AS ENUM (
-        'ID',
+        'Id',
         'Attribute',
         'NoDiff',
         'TransIdIn'
@@ -67,8 +81,14 @@ CREATE TYPE sys_syn.create_out_column AS (
 ALTER TYPE sys_syn.create_out_column OWNER TO postgres;
 
 
+CREATE SEQUENCE sys_syn.trans_id_seq;
+ALTER TABLE sys_syn.trans_id_seq OWNER TO postgres;
+
+
+-- NOTE:  Using sys_syn.trans_id_method seq requires sys_syn.in_trans_*_start calls for queue processors.
 CREATE TABLE sys_syn.settings (
-        logical_replication boolean NOT NULL DEFAULT false
+        trans_id_method         sys_syn.trans_id_method NOT NULL DEFAULT 'seq'::sys_syn.trans_id_method,
+        logical_replication     boolean                 NOT NULL DEFAULT false
 );
 ALTER TABLE sys_syn.settings OWNER TO postgres;
 CREATE UNIQUE INDEX settings_1_row_idx
@@ -350,6 +370,8 @@ ALTER TABLE ONLY sys_syn.out_tables_state
         ADD CONSTRAINT out_tables_state_out_table_id_fkey FOREIGN KEY (in_table_id, out_group_id)
                 REFERENCES sys_syn.out_tables_def(in_table_id, out_group_id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
+
+-- Kept separate from settings due to different pg_extension_config_dump behavior.
 CREATE TABLE sys_syn.trans_id_mod (
         trans_id_mod sys_syn.trans_id NOT NULL
 );
@@ -902,7 +924,7 @@ BEGIN
         FOR     _in_column IN
         SELECT  *
         FROM    unnest(in_columns) AS in_column_rel
-        WHERE   in_column_rel.in_column_type = 'ID'::sys_syn.in_column_type
+        WHERE   in_column_rel.in_column_type = 'Id'::sys_syn.in_column_type
         LOOP
                 IF _sql_delimit THEN
                         _sql_buffer := _sql_buffer || ',';
@@ -915,7 +937,7 @@ BEGIN
         END LOOP;
         IF _sql_delimit = FALSE THEN
                 RAISE EXCEPTION '1 or more ID columns are required.'
-                        USING HINT = 'Find the primary key columns for this table and switch the in_column_type to ID.';
+                        USING HINT = 'Find the primary key columns for this table and switch the in_column_type to Id.';
         END IF;
         _sql_buffer := _sql_buffer || ');
 ';
@@ -1153,19 +1175,19 @@ BEGIN
                         _in_column_type := 'TransIdIn'::sys_syn.in_column_type;
                 ELSIF id_columns IS NOT NULL THEN
                         IF _column.attname = ANY(id_columns) THEN
-                                _in_column_type := 'ID'::sys_syn.in_column_type;
+                                _in_column_type := 'Id'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSIF _primary_key IS NOT NULL THEN
                         IF _column.attnum = ANY(_primary_key) THEN
-                                _in_column_type := 'ID'::sys_syn.in_column_type;
+                                _in_column_type := 'Id'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSE
                         IF _column.attnotnull THEN
-                                _in_column_type := 'ID'::sys_syn.in_column_type;
+                                _in_column_type := 'Id'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
@@ -1221,7 +1243,7 @@ BEGIN
                                         CONTINUE;
                                 END IF;
 
-                                _final_ids := array_cat(_final_ids, _in_column_transform.final_ids);
+                                _final_ids := _final_ids || _in_column_transform.final_ids;
                                 _last_priority := _in_column_transform.priority;
 
                                 IF _in_column_transform.new_data_type IS NOT NULL THEN
@@ -1233,8 +1255,7 @@ BEGIN
                                 END IF;
 
                                 IF _in_column_transform.create_in_columns IS NOT NULL THEN
-                                        _create_in_columns :=
-                                                array_cat(_create_in_columns, _in_column_transform.create_in_columns);
+                                        _create_in_columns := _create_in_columns || _in_column_transform.create_in_columns;
                                 END IF;
 
                                 IF _in_column_transform.omit IS NOT NULL THEN
@@ -1420,19 +1441,19 @@ BEGIN
                         _in_column_type := 'TransIdIn'::sys_syn.in_column_type;
                 ELSIF in_table_columns_add_sql.id_columns IS NOT NULL THEN
                         IF _column.attname = ANY(in_table_columns_add_sql.id_columns) THEN
-                                _in_column_type := 'ID'::sys_syn.in_column_type;
+                                _in_column_type := 'Id'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSIF _primary_key IS NOT NULL THEN
                         IF _column.attnum = ANY(_primary_key) THEN
-                                _in_column_type := 'ID'::sys_syn.in_column_type;
+                                _in_column_type := 'Id'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
                 ELSE
                         IF _column.attnotnull THEN
-                                _in_column_type := 'ID'::sys_syn.in_column_type;
+                                _in_column_type := 'Id'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
                         END IF;
@@ -1488,7 +1509,7 @@ BEGIN
                                         CONTINUE;
                                 END IF;
 
-                                _final_ids := array_cat(_final_ids, _in_column_transform.final_ids);
+                                _final_ids := _final_ids || _in_column_transform.final_ids;
                                 _last_priority := _in_column_transform.priority;
 
                                 IF _in_column_transform.new_data_type IS NOT NULL THEN
@@ -1500,8 +1521,7 @@ BEGIN
                                 END IF;
 
                                 IF _in_column_transform.create_in_columns IS NOT NULL THEN
-                                        _create_in_columns :=
-                                                array_cat(_create_in_columns, _in_column_transform.create_in_columns);
+                                        _create_in_columns := _create_in_columns || _in_column_transform.create_in_columns;
                                 END IF;
 
                                 IF _in_column_transform.omit IS NOT NULL THEN
@@ -1606,7 +1626,7 @@ BEGIN
         FOR     _in_column IN
         SELECT  *
         FROM    unnest(in_columns) AS in_column_rel
-        WHERE   in_column_rel.in_column_type = 'ID'::sys_syn.in_column_type
+        WHERE   in_column_rel.in_column_type = 'Id'::sys_syn.in_column_type
         LOOP
                 IF _sql_delimit THEN
                         _sql_buffer := _sql_buffer || ',
@@ -1760,40 +1780,161 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.in_trans_finish() OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.in_trans_start(
-        changes_only    boolean,
-        in_table_ids    text[]  DEFAULT ARRAY[]::text[],
-        pre_pull        boolean DEFAULT FALSE)
+CREATE FUNCTION sys_syn.in_trans_pre_pull_start (
+        changes_only    boolean)
         RETURNS void
         LANGUAGE plpgsql
         COST 500
         AS $$
+DECLARE
+        _trans_id_method        sys_syn.trans_id_method;
+        _trans_id_in            sys_syn.trans_id;
 BEGIN
-        -- Specifying in_table_ids enables deletes to be generated when the table has 0 rows in it.
-        -- If in_table_ids is left NULL, the table must have at least 1 row for action to be taken.
+        _trans_id_method := (SELECT trans_id_method FROM sys_syn.settings);
 
-        IF (SELECT COUNT(*) != 1 FROM sys_syn.trans_id_mod) THEN
-                INSERT INTO sys_syn.trans_id_mod(
-                        trans_id_mod)
-                VALUES (
-                        (       SELECT  COALESCE(MAX(trans_id_in), 0) - txid_current() + 2
-                                FROM    sys_syn.in_trans_log
-                        )
-                );
+        IF _trans_id_method = 'seq' THEN
+                IF current_setting('sys_syn.trans_id_curr')::sys_syn.trans_id = 0 THEN
+                        _trans_id_in := nextval('sys_syn.trans_id_seq')::sys_syn.trans_id;
+                        -- SET is not allowed for STABLE functions, such as sys_syn.trans_id_get().
+                        --SET LOCAL sys_syn.trans_id_curr TO _trans_id_in;
+                        PERFORM set_config('sys_syn.trans_id_curr', _trans_id_in::text, true);
+                END IF;
+        ELSIF _trans_id_method = 'txid' THEN
+                IF (SELECT COUNT(*) != 1 FROM sys_syn.trans_id_mod) THEN
+                        INSERT INTO sys_syn.trans_id_mod(
+                                trans_id_mod)
+                        VALUES (
+                                (       SELECT  COALESCE(MAX(trans_id_in), 0) - txid_current() + 2
+                                        FROM    sys_syn.in_trans_log
+                                )
+                        );
+                END IF;
         END IF;
 
         INSERT INTO sys_syn.in_trans_log (
                 trans_id_in,            pre_pull,                       changes_only,
                 trans_time,             in_table_ids
         ) VALUES (
-                sys_syn.trans_id_get(), in_trans_start.pre_pull,        in_trans_start.changes_only,
-                CURRENT_TIMESTAMP,      in_trans_start.in_table_ids
+                sys_syn.trans_id_get(), TRUE,                           in_trans_pre_pull_start.changes_only,
+                CURRENT_TIMESTAMP,      ARRAY[]::text[]
         );
 END;
 $$;
-ALTER FUNCTION sys_syn.in_trans_start(changes_only boolean, in_table_ids text[], pre_pull boolean) OWNER TO postgres;
+ALTER FUNCTION sys_syn.in_trans_pre_pull_start(changes_only boolean) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.out_table_add_sql(
+CREATE FUNCTION sys_syn.in_trans_pull_start (
+        changes_only    boolean,
+        in_table_ids    text[]  DEFAULT ARRAY[]::text[])
+        RETURNS void
+        LANGUAGE plpgsql
+        COST 500
+        AS $$
+DECLARE
+        _trans_id_method        sys_syn.trans_id_method;
+        _trans_id_in            sys_syn.trans_id;
+BEGIN
+        -- Specifying in_table_ids enables deletes to be generated when the table has 0 rows in it.
+        -- If in_table_ids is left NULL, the table must have at least 1 row for action to be taken.
+
+        _trans_id_method := (SELECT trans_id_method FROM sys_syn.settings);
+
+        IF _trans_id_method = 'seq' THEN
+                IF current_setting('sys_syn.trans_id_curr')::sys_syn.trans_id = 0 THEN
+                        _trans_id_in := nextval('sys_syn.trans_id_seq')::sys_syn.trans_id;
+                        -- SET is not allowed for STABLE functions, such as sys_syn.trans_id_get().
+                        --SET LOCAL sys_syn.trans_id_curr TO _trans_id_in;
+                        PERFORM set_config('sys_syn.trans_id_curr', _trans_id_in::text, true);
+                END IF;
+        ELSIF _trans_id_method = 'txid' THEN
+                IF (SELECT COUNT(*) != 1 FROM sys_syn.trans_id_mod) THEN
+                        INSERT INTO sys_syn.trans_id_mod(
+                                trans_id_mod)
+                        VALUES (
+                                (       SELECT  COALESCE(MAX(trans_id_in), 0) - txid_current() + 2
+                                        FROM    sys_syn.in_trans_log
+                                )
+                        );
+                END IF;
+        END IF;
+
+        INSERT INTO sys_syn.in_trans_log (
+                trans_id_in,            pre_pull,                       changes_only,
+                trans_time,             in_table_ids
+        ) VALUES (
+                sys_syn.trans_id_get(), FALSE,                          in_trans_pull_start.changes_only,
+                CURRENT_TIMESTAMP,      in_trans_pull_start.in_table_ids
+        );
+END;
+$$;
+ALTER FUNCTION sys_syn.in_trans_pull_start(changes_only boolean, in_table_ids text[]) OWNER TO postgres;
+
+CREATE FUNCTION sys_syn.in_trans_move_start ()
+        RETURNS void
+        LANGUAGE plpgsql
+        COST 500
+        AS $$
+DECLARE
+        _trans_id_method        sys_syn.trans_id_method;
+        _trans_id_in            sys_syn.trans_id;
+BEGIN
+        _trans_id_method := (SELECT trans_id_method FROM sys_syn.settings);
+
+        IF _trans_id_method = 'seq' THEN
+                IF current_setting('sys_syn.trans_id_curr')::sys_syn.trans_id = 0 THEN
+                        _trans_id_in := nextval('sys_syn.trans_id_seq')::sys_syn.trans_id;
+                        -- SET is not allowed for STABLE functions, such as sys_syn.trans_id_get().
+                        --SET LOCAL sys_syn.trans_id_curr TO _trans_id_in;
+                        PERFORM set_config('sys_syn.trans_id_curr', _trans_id_in::text, true);
+                END IF;
+        ELSIF _trans_id_method = 'txid' THEN
+                IF (SELECT COUNT(*) != 1 FROM sys_syn.trans_id_mod) THEN
+                        INSERT INTO sys_syn.trans_id_mod(
+                                trans_id_mod)
+                        VALUES (
+                                (       SELECT  COALESCE(MAX(trans_id_in), 0) - txid_current() + 2
+                                        FROM    sys_syn.in_trans_log
+                                )
+                        );
+                END IF;
+        END IF;
+END;
+$$;
+ALTER FUNCTION sys_syn.in_trans_move_start() OWNER TO postgres;
+
+CREATE FUNCTION sys_syn.in_trans_claim_start ()
+        RETURNS void
+        LANGUAGE plpgsql
+        COST 500
+        AS $$
+DECLARE
+        _trans_id_method        sys_syn.trans_id_method;
+        _trans_id_in            sys_syn.trans_id;
+BEGIN
+        _trans_id_method := (SELECT trans_id_method FROM sys_syn.settings);
+
+        IF _trans_id_method = 'seq' THEN
+                IF current_setting('sys_syn.trans_id_curr')::sys_syn.trans_id = 0 THEN
+                        _trans_id_in := nextval('sys_syn.trans_id_seq')::sys_syn.trans_id;
+                        -- SET is not allowed for STABLE functions, such as sys_syn.trans_id_get().
+                        --SET LOCAL sys_syn.trans_id_curr TO _trans_id_in;
+                        PERFORM set_config('sys_syn.trans_id_curr', _trans_id_in::text, true);
+                END IF;
+        ELSIF _trans_id_method = 'txid' THEN
+                IF (SELECT COUNT(*) != 1 FROM sys_syn.trans_id_mod) THEN
+                        INSERT INTO sys_syn.trans_id_mod(
+                                trans_id_mod)
+                        VALUES (
+                                (       SELECT  COALESCE(MAX(trans_id_in), 0) - txid_current() + 2
+                                        FROM    sys_syn.in_trans_log
+                                )
+                        );
+                END IF;
+        END IF;
+END;
+$$;
+ALTER FUNCTION sys_syn.in_trans_claim_start() OWNER TO postgres;
+
+CREATE FUNCTION sys_syn.out_table_add_sql (
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
@@ -1967,7 +2108,7 @@ BEGIN
                                         CONTINUE;
                                 END IF;
 
-                                _final_ids := array_cat(_final_ids, _out_column_transform.final_ids);
+                                _final_ids := _final_ids || _out_column_transform.final_ids;
                                 _last_priority := _out_column_transform.priority;
 
                                 IF _out_column_transform.new_data_type IS NOT NULL THEN
@@ -2435,11 +2576,37 @@ ALTER FUNCTION sys_syn.out_table_add(
         record_comparison_different     text,
         record_comparison_same          text) OWNER TO postgres;
 
+
 CREATE FUNCTION sys_syn.trans_id_get() RETURNS sys_syn.trans_id
-        LANGUAGE sql STABLE COST 50
-        AS $$
-        SELECT (txid_current() + trans_id_mod)::sys_syn.trans_id FROM sys_syn.trans_id_mod;
-$$;
+        LANGUAGE plpgsql STABLE
+        AS $_$
+DECLARE
+        _trans_id_method        sys_syn.trans_id_method;
+        _trans_id_in            sys_syn.trans_id;
+BEGIN
+        _trans_id_method := (SELECT trans_id_method FROM sys_syn.settings);
+
+        IF _trans_id_method = 'seq' THEN
+                _trans_id_in := current_setting('sys_syn.trans_id_curr')::sys_syn.trans_id;
+                IF _trans_id_in = 0 THEN
+                        RAISE EXCEPTION 'Run sys_syn.in_trans_*_start in this transaction.'
+                        USING HINT = 'Make sure that auto-commit is turned off.  Run sys_syn.in_trans_*_start after BEGIN and sys'||
+                                '_syn.in_trans_finish before COMMIT.';
+                END IF;
+                RETURN _trans_id_in;
+        ELSIF _trans_id_method = 'txid' THEN
+                IF (SELECT COUNT(*) != 1 FROM sys_syn.trans_id_mod) THEN
+                        RAISE EXCEPTION 'sys_syn.trans_id_mod table empty.'
+                        USING HINT = 'Run sys_syn.in_trans_*_start (directly or indirectly via a pull) after a logical restore.';
+                END IF;
+
+                RETURN (SELECT (txid_current() + trans_id_mod)::sys_syn.trans_id FROM sys_syn.trans_id_mod);
+        ELSE
+                RAISE EXCEPTION 'Unknown sys_syn.trans_id_method %', _trans_id_method
+                USING HINT = 'Add it to sys_syn.trans_id_get';
+        END IF;
+END;
+$_$;
 ALTER FUNCTION sys_syn.trans_id_get() OWNER TO postgres;
 
 CREATE FUNCTION sys_syn.util_column_name_to_data_type(in_table_id text, column_name name) RETURNS text
@@ -2538,7 +2705,7 @@ BEGIN
 
         _in_column_type_name := in_table_id || '_in_id';
         _in_column_type := (
-                SELECT  'ID'::sys_syn.in_column_type
+                SELECT  'Id'::sys_syn.in_column_type
                 FROM    pg_catalog.pg_namespace JOIN
                         pg_catalog.pg_class ON
                                 pg_class.relnamespace = pg_namespace.oid JOIN
@@ -2607,7 +2774,7 @@ DECLARE
 BEGIN
         _column_name :=
                 CASE in_column_type
-                        WHEN 'ID'::sys_syn.in_column_type               THEN 'id'
+                        WHEN 'Id'::sys_syn.in_column_type               THEN 'id'
                         WHEN 'Attribute'::sys_syn.in_column_type        THEN 'attributes'
                         WHEN 'NoDiff'::sys_syn.in_column_type           THEN 'no_diff'
                         ELSE                                            NULL
@@ -2666,7 +2833,7 @@ BEGIN
                         FROM    sys_syn.in_pulls_state
                         WHERE   in_pulls_state.in_pull_id = _in_pull_def.in_pull_id);
 
-        PERFORM sys_syn.in_trans_start(changes_only, $$ || (
+        PERFORM sys_syn.in_trans_pull_start(changes_only, $$ || (
                         SELECT  'ARRAY[' ||
                                         COALESCE(
                                                 array_to_string(array_agg(quote_literal(in_table_id) ORDER BY in_pull_order), ','),
@@ -2731,7 +2898,7 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                in_table_columns_def.column_name) IN ('Id'::sys_syn.in_column_type,
                                                         'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
@@ -2755,7 +2922,7 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                in_table_columns_def.column_name) IN ('Id'::sys_syn.in_column_type,
                                                         'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
@@ -2832,7 +2999,7 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                in_table_columns_def.column_name) IN ('Id'::sys_syn.in_column_type,
                                                         'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
@@ -2952,7 +3119,7 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                in_table_columns_def.column_name) IN ('Id'::sys_syn.in_column_type,
                                                         'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
@@ -2976,7 +3143,7 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                in_table_columns_def.column_name) IN ('Id'::sys_syn.in_column_type,
                                                         'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
@@ -3053,7 +3220,7 @@ $$;
                                 WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id AND
                                         sys_syn.util_column_name_to_in_column_type(
                                                 in_table_columns_def.in_table_id,
-                                                in_table_columns_def.column_name) IN ('ID'::sys_syn.in_column_type,
+                                                in_table_columns_def.column_name) IN ('Id'::sys_syn.in_column_type,
                                                         'NoDiff'::sys_syn.in_column_type)
                                 ORDER BY in_table_columns_def.column_index
                                 LOOP
@@ -3470,7 +3637,7 @@ BEGIN
         CASE in_column_type
         WHEN 'Attribute'::sys_syn.in_column_type THEN
                 _in_column_type_name := _in_table_def.in_table_id||'_in_attributes';
-        WHEN 'ID'::sys_syn.in_column_type THEN
+        WHEN 'Id'::sys_syn.in_column_type THEN
                 _in_column_type_name := _in_table_def.in_table_id||'_in_id';
         WHEN 'NoDiff'::sys_syn.in_column_type THEN
                 _in_column_type_name := _in_table_def.in_table_id||'_in_no_diff';
@@ -3875,6 +4042,8 @@ BEGIN
 
         _trans_id_start := _out_table_state.trans_id_in_latest + 1;
         _latest_trans_id := latest_trans_id;
+
+        PERFORM sys_syn.in_trans_move_start();
 
         IF _latest_trans_id IS NULL THEN
                 _latest_trans_id := sys_syn.trans_id_get();
@@ -4857,7 +5026,7 @@ BEGIN
                         sys_syn.util_column_name_to_in_column_type(
                                 in_foreign_keys.primary_table_id,
                                 in_foreign_keys.primary_column_name)
-                        != 'ID'::sys_syn.in_column_type) AS primary_data_table_needed
+                        != 'Id'::sys_syn.in_column_type) AS primary_data_table_needed
         FROM    sys_syn.in_foreign_keys JOIN
                 sys_syn.out_tables_def ON
                         out_tables_def.in_table_id = in_foreign_keys.primary_table_id
@@ -4922,7 +5091,7 @@ BEGIN
                         _primary_column_column_type := sys_syn.util_column_name_to_in_column_type(
                                 _foreign_column_loop.primary_table_id, _foreign_column_loop.primary_column_name);
 
-                        IF _primary_column_column_type = 'ID'::sys_syn.in_column_type THEN
+                        IF _primary_column_column_type = 'Id'::sys_syn.in_column_type THEN
                                 _primary_column_table_ident     := 'out_primary_baseline';
                         ELSE
                                 _primary_column_table_ident     := 'in_primary_baseline';
@@ -4932,7 +5101,7 @@ BEGIN
                         _foreign_column_column_type := sys_syn.util_column_name_to_in_column_type(
                                 _foreign_column_loop.foreign_table_id, _foreign_column_loop.foreign_column_name);
 
-                        IF _foreign_column_column_type = 'ID'::sys_syn.in_column_type THEN
+                        IF _foreign_column_column_type = 'Id'::sys_syn.in_column_type THEN
                                 _foreign_column_table_ident     := 'out_temp';
                         ELSE
                                 _foreign_column_table_ident     := 'in_temp';
@@ -5169,7 +5338,7 @@ BEGIN
 
         TRUNCATE $$ || _name_unlogged_full || $$;
 
-        PERFORM sys_syn.in_trans_start(FALSE, ARRAY[]::TEXT[], TRUE);
+        PERFORM sys_syn.in_trans_pre_pull_start(FALSE);
 
         INSERT INTO $$ || _name_unlogged_full || $$ (
                 $$ || _sql_unlogged_insert || $$)

@@ -32,7 +32,7 @@ SELECT sys_syn.in_table_add (
                 in_group_id     => 'in',
                 in_pull_id      => NULL,
                 in_columns      => ARRAY[
-                       $COL$("child_table_id","integer",ID,"in_source.child_table_id",,,,)$COL$,
+                       $COL$("child_table_id","integer",Id,"in_source.child_table_id",,,,)$COL$,
                        $COL$("parent_table_id","integer",Attribute,"in_source.parent_table_id",,1,"parent_table","parent_table_id")$COL$
                 ]::sys_syn.create_in_column[],
                 full_table_reference    => 'user_data.child_table'
@@ -59,7 +59,7 @@ SELECT user_data.parent_table_pull(FALSE);
 SELECT user_data.parent_table_out_move();
 SELECT id, delta_type, queue_state FROM user_data.parent_table_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.child_table_pull(FALSE);
 SELECT user_data.child_table_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_table_out_queue;
@@ -69,7 +69,7 @@ UPDATE user_data.parent_table_out_queue SET queue_state = 'Processed'::sys_syn.q
 SELECT user_data.parent_table_out_processed();
 SELECT id, delta_type, queue_state FROM user_data.parent_table_out_queue;
 
-UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;
+UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 3;
 SELECT user_data.child_table_pull(FALSE);
 SELECT user_data.child_table_out_move();
 SELECT id, delta_type, queue_state FROM user_data.child_table_out_queue;
