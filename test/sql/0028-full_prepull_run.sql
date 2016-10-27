@@ -20,7 +20,7 @@ DO $$BEGIN
 END$$;
 
 DO $$BEGIN
-        EXECUTE sys_syn.in_table_add_sql(
+        EXECUTE sys_syn.in_table_create_sql(
                 relation        => 'user_data.test_table_prepull_full'::regclass,
                 in_group_id     => 'in',
                 schema          => 'user_data',
@@ -39,7 +39,7 @@ VALUES (1,              'test_data');
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
 ALTER TABLE user_data.test_table_out_queue
   ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;

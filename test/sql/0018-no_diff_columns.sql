@@ -33,10 +33,10 @@ VALUES (null,           50,             'boolean',      null,                   
         'Attribute',    null,           'NoDiff',               FALSE,  'sys_syn_delete',
         TRUE);
 
-SELECT sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
 
 DO $$BEGIN
-    EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+    EXECUTE sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
 END$$;
 
 INSERT INTO user_data.test_table(
@@ -45,7 +45,7 @@ VALUES (1,              'test_data1',           'not used',     FALSE);
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
 SELECT user_data.test_table_pull(FALSE);
 

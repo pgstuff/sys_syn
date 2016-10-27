@@ -20,7 +20,7 @@ DO $$BEGIN
         EXECUTE sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
 END$$;
 
-SELECT sys_syn.in_table_add (
+SELECT sys_syn.in_table_create (
                 schema          => 'user_data'::regnamespace,
                 in_table_id     => 'test_table',
                 in_group_id     => 'in',
@@ -40,7 +40,7 @@ SELECT sys_syn.in_table_add (
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
 ALTER TABLE user_data.test_table_out_queue
   ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;

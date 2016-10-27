@@ -20,7 +20,7 @@ SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
  INSERT INTO sys_syn.prepulls_def(                                                                    +
          prepull_id,     schema)                                                                      +
  VALUES ('test_table',   'user_data');                                                                +
- CREATE OR REPLACE FUNCTION user_data.test_table_prepull_full()                                       +
+ CREATE FUNCTION user_data.test_table_prepull_full()                                                  +
          RETURNS boolean AS                                                                           +
  $BODY$                                                                                               +
  DECLARE                                                                                              +
@@ -64,7 +64,7 @@ SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
  $BODY$                                                                                               +
    LANGUAGE plpgsql VOLATILE                                                                          +
    COST 2000;                                                                                         +
- SELECT sys_syn.in_table_add_sql(                                                                     +
+ SELECT sys_syn.in_table_create_sql(                                                                  +
          relation        => 'user_data.test_table_prepull_full'::regclass,                            +
          in_group_id     => 'in',                                                                     +
          schema          => 'user_data',                                                              +

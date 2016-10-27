@@ -74,10 +74,10 @@ VALUES  ('in',          NULL,                   ARRAY['convert_us_eastern','sys_
         ('in2',         'in',                   NULL),
         ('in3',         'in2',                  ARRAY['space_is_null','rename_et_dt_col_name']);
 
-SELECT sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in3');
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in3');
 
 DO $$BEGIN
-        EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in3');
+        EXECUTE sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in3');
 END$$;
 
 INSERT INTO user_data.test_table (
@@ -98,7 +98,7 @@ VALUES (3,              NULL,                   '1889-12-31',           '1889-12
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
 ALTER TABLE user_data.test_table_out_queue
   ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;

@@ -16,7 +16,7 @@ CREATE TABLE user_data.test_table (
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
-SELECT sys_syn.in_table_add (
+SELECT sys_syn.in_table_create (
                 'user_data',
                 'test_table',
                 'in',
@@ -37,7 +37,7 @@ VALUES  (1,              '2009-01-02 03:04:05-00',       'test_data v1'),
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out', data_view => TRUE);
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out', data_view => TRUE);
 
 ALTER TABLE user_data.test_table_out_queue
   ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;

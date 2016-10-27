@@ -15,10 +15,10 @@ CREATE TABLE "User Data"."Test Table" (
 
 INSERT INTO sys_syn.in_groups_def VALUES ('In Group');
 
-SELECT sys_syn.in_table_add_sql('"User Data"."Test Table"'::regclass, 'In Group');
+SELECT sys_syn.in_table_create_sql('"User Data"."Test Table"'::regclass, 'In Group');
 
 DO $$BEGIN
-        EXECUTE sys_syn.in_table_add_sql('"User Data"."Test Table"'::regclass, 'In Group');
+        EXECUTE sys_syn.in_table_create_sql('"User Data"."Test Table"'::regclass, 'In Group');
 END$$;
 
 INSERT INTO "User Data"."Test Table"(
@@ -27,10 +27,10 @@ VALUES (1,              'test_data v1');
 
 INSERT INTO sys_syn.out_groups_def VALUES ('Out Group');
 
-SELECT sys_syn.out_table_add_sql('"User Data"'::regnamespace, 'Test Table', 'Out Group');
+SELECT sys_syn.out_table_create_sql('"User Data"'::regnamespace, 'Test Table', 'Out Group');
 
 DO $$BEGIN
-        EXECUTE sys_syn.out_table_add_sql('"User Data"'::regnamespace, 'Test Table', 'Out Group');
+        EXECUTE sys_syn.out_table_create_sql('"User Data"'::regnamespace, 'Test Table', 'Out Group');
 END$$;
 
 SELECT "User Data"."Test Table_pull"(FALSE);

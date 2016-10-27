@@ -13,7 +13,7 @@ INSERT INTO sys_syn.in_groups_def VALUES ('in');
 DO $$BEGIN
         EXECUTE sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
 END$$;
-SELECT sys_syn.in_table_add (
+SELECT sys_syn.in_table_create (
                 schema          => 'user_data'::regnamespace,
                 in_table_id     => 'test_table',
                 in_group_id     => 'in',
@@ -30,15 +30,15 @@ SELECT sys_syn.in_table_add (
                 full_prepull_id         => 'test_table',
                 changes_prepull_id      => NULL
         );
- in_table_add 
---------------
+ in_table_create 
+-----------------
  
 (1 row)
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
- out_table_add 
----------------
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
+ out_table_create 
+------------------
  
 (1 row)
 

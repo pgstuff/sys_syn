@@ -15,10 +15,10 @@ CREATE TABLE user_data.test_table (
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
-SELECT sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
 
 DO $$BEGIN
-    EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+    EXECUTE sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
 END$$;
 
 ROLLBACK;

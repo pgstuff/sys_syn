@@ -59,6 +59,7 @@ Test requirements:
 Documentation requirements:
 
 - `asciidoc`
+- `source-highlight`
 
 
 
@@ -136,10 +137,10 @@ You may add an input table immediately using:
 
 [source,sql]
 ----
-EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+EXECUTE sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
 ----
 
-IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key or ID by adding "`, id_columns => ARRAY['id_col_name_here']`" to the `sys_syn.in_table_add_sql` function call.
+IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key or ID by adding "`, id_columns => ARRAY['id_col_name_here']`" to the `sys_syn.in_table_create_sql` function call.
 
 TIP:  If an object is composed of multiple rows because the rows represent versions of the same object, then leave the timestamp field off of the Id and mark the timestamp as an Attribute with an array_order of 1.  This groups the object's rows into a single queue record and allows you to process the object change with the complete history.  Enable the data_view to see the versions as distinct rows with a single queue record.  This ensures that the object is either committed as a whole, or not at all.
 
@@ -147,14 +148,14 @@ You can also generate the function call to add the table by specifying just the 
 
 [source,sql]
 ----
-SELECT sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
 ----
 
 Copy the resulting text into your SQL editor, make adjustments, and execute it.
 
 [source,sql]
 ----
-SELECT sys_syn.in_table_add (
+SELECT sys_syn.in_table_create (
         schema          => 'user_data'::regnamespace,
         in_table_id     => 'test_table',
         in_group_id     => 'in',
@@ -177,6 +178,13 @@ SELECT sys_syn.in_table_add (
 );
 ----
 
+===== Drop an Input Table
+
+[source,sql]
+----
+SELECT sys_syn.in_table_drop('test_table');
+----
+
 
 
 ===== Add an Output Group
@@ -191,7 +199,7 @@ You may add an output table immediately using:
 
 [source,sql]
 ----
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 ----
 
 The arguments are:
@@ -204,14 +212,14 @@ If you want to change the advanced parameters or manually review or edit the tra
 
 [source,sql]
 ----
-SELECT sys_syn.out_table_add_sql('user_data', 'test_table', 'out');
+SELECT sys_syn.out_table_create_sql('user_data', 'test_table', 'out');
 ----
 
 Copy the resulting text into your SQL editor, make adjustments, and execute it.
 
 [source,sql]
 ----
-SELECT sys_syn.out_table_add (
+SELECT sys_syn.out_table_create (
         schema                  => 'user_data'::regnamespace,
         in_table_id             => 'test_table',
         out_group_id            => 'out',
@@ -247,6 +255,13 @@ SELECT sys_syn.out_table_add (
         record_comparison_different=> NULL,
         record_comparison_same     => NULL
 );
+----
+
+===== Drop an Output Table
+
+[source,sql]
+----
+SELECT sys_syn.out_table_drop('test_table', 'out');
 ----
 
 

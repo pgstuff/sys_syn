@@ -22,13 +22,13 @@ CREATE TABLE user_data.child_table (
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
-SELECT sys_syn.in_table_add_sql('user_data.parent_table'::regclass, 'in');
+SELECT sys_syn.in_table_create_sql('user_data.parent_table'::regclass, 'in');
 
 DO $$BEGIN
-        EXECUTE sys_syn.in_table_add_sql('user_data.parent_table'::regclass, 'in');
+        EXECUTE sys_syn.in_table_create_sql('user_data.parent_table'::regclass, 'in');
 END$$;
 
-SELECT sys_syn.in_table_add (
+SELECT sys_syn.in_table_create (
                 schema          => 'user_data',
                 in_table_id     => 'child_table',
                 in_group_id     => 'in',
@@ -51,9 +51,9 @@ VALUES (3,                      1,                      2);
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('user_data', 'parent_table', 'out');
+SELECT sys_syn.out_table_create('user_data', 'parent_table', 'out');
 
-SELECT sys_syn.out_table_add('user_data', 'child_table', 'out');
+SELECT sys_syn.out_table_create('user_data', 'child_table', 'out');
 
 ALTER TABLE user_data.parent_table_out_queue
   ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.parent_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;

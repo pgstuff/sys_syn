@@ -12,10 +12,10 @@ CREATE TABLE public.test_data (
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
-SELECT sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
+SELECT sys_syn.in_table_create_sql('public.test_data'::regclass, 'in');
 
 DO $$BEGIN
-        EXECUTE sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
+        EXECUTE sys_syn.in_table_create_sql('public.test_data'::regclass, 'in');
 END$$;
 
 INSERT INTO public.test_data(
@@ -24,7 +24,7 @@ VALUES (1,              'test_data v1');
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
-SELECT sys_syn.out_table_add('public', 'test_data', 'out');
+SELECT sys_syn.out_table_create('public', 'test_data', 'out');
 
 SELECT public.test_data_pull(FALSE);
 SELECT public.test_data_out_move();

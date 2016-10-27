@@ -9,10 +9,10 @@ CREATE TABLE user_data.test_table (
         test_table_text text,
         CONSTRAINT test_table_pid PRIMARY KEY (test_table_id));
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
-SELECT sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
-                                           in_table_add_sql                                            
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
+                                          in_table_create_sql                                          
 -------------------------------------------------------------------------------------------------------
- SELECT sys_syn.in_table_add (                                                                        +
+ SELECT sys_syn.in_table_create(                                                                      +
                  schema          => 'user_data'::regnamespace,                                        +
                  in_table_id     => 'test_table',                                                     +
                  in_group_id     => 'in',                                                             +
@@ -36,15 +36,15 @@ SELECT sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
 (1 row)
 
 DO $$BEGIN
-    EXECUTE sys_syn.in_table_add_sql('user_data.test_table'::regclass, 'in');
+    EXECUTE sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
 END$$;
 INSERT INTO user_data.test_table(
         test_table_id, test_table_text)
 VALUES (1,              'test_data v1');
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
- out_table_add 
----------------
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
+ out_table_create 
+------------------
  
 (1 row)
 

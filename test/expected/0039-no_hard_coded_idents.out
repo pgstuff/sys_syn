@@ -7,10 +7,10 @@ CREATE TABLE public.test_data (
         test_data_text text,
         CONSTRAINT test_data_pid PRIMARY KEY (test_data_id));
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
-SELECT sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
-                                          in_table_add_sql                                           
+SELECT sys_syn.in_table_create_sql('public.test_data'::regclass, 'in');
+                                         in_table_create_sql                                         
 -----------------------------------------------------------------------------------------------------
- SELECT sys_syn.in_table_add (                                                                      +
+ SELECT sys_syn.in_table_create(                                                                    +
                  schema          => 'public'::regnamespace,                                         +
                  in_table_id     => 'test_data',                                                    +
                  in_group_id     => 'in',                                                           +
@@ -34,15 +34,15 @@ SELECT sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
 (1 row)
 
 DO $$BEGIN
-        EXECUTE sys_syn.in_table_add_sql('public.test_data'::regclass, 'in');
+        EXECUTE sys_syn.in_table_create_sql('public.test_data'::regclass, 'in');
 END$$;
 INSERT INTO public.test_data(
         test_data_id, test_data_text)
 VALUES (1,              'test_data v1');
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
-SELECT sys_syn.out_table_add('public', 'test_data', 'out');
- out_table_add 
----------------
+SELECT sys_syn.out_table_create('public', 'test_data', 'out');
+ out_table_create 
+------------------
  
 (1 row)
 

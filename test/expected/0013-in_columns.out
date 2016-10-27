@@ -14,7 +14,7 @@ CREATE TABLE user_data.test_table (
 INSERT INTO sys_syn.in_groups_def
         (in_group_id)
 VALUES  ('in');
-SELECT sys_syn.in_table_add (
+SELECT sys_syn.in_table_create (
                 'user_data',
                 'test_table',
                 'in',
@@ -29,8 +29,8 @@ SELECT sys_syn.in_table_add (
                 'user_data.test_table',
                 NULL
         );
- in_table_add 
---------------
+ in_table_create 
+-----------------
  
 (1 row)
 
@@ -50,9 +50,9 @@ INSERT INTO user_data.test_table (
 VALUES (3,              NULL,                   '1889-12-31',           '1889-12-31 23:59:59-00',
         '1889-01-01 00:00:00');
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
-SELECT sys_syn.out_table_add('user_data', 'test_table', 'out');
- out_table_add 
----------------
+SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
+ out_table_create 
+------------------
  
 (1 row)
 

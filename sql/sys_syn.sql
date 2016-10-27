@@ -163,7 +163,7 @@ ALTER TABLE sys_syn.in_pulls_def
         ADD CONSTRAINT lock_id_disallow_sign CHECK (lock_id >= 0);
 
 -- The body will be replaced in the function section.
-CREATE OR REPLACE FUNCTION sys_syn.util_column_name_to_in_column_type(in_table_id text, column_name name)
+CREATE FUNCTION sys_syn.util_column_name_to_in_column_type (in_table_id text, column_name name)
         RETURNS sys_syn.in_column_type
     LANGUAGE plpgsql STABLE
     AS $_$
@@ -479,22 +479,6 @@ VALUES ('sys_syn-general',      100,            '{text_trim}',  'text',         
         null,                   null,
         'rtrim(%1)');
 
-/*INSERT INTO sys_syn.in_column_transforms(
-        rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
-        new_data_type,          new_column_name,
-        expression)
-VALUES ('sys_syn-general',      50,             '{}',           'integer',      null,                   null,
-        'public.varint64',      null,
-        null);
-
-INSERT INTO sys_syn.in_column_transforms(
-        rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
-        new_data_type,          new_column_name,
-        expression)
-VALUES ('sys_syn-general',      50,             '{}',           'bigint',       null,                   null,
-        'public.varint64',      null,
-        null);*/
-
 INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,              data_type_like, relation_name_like,
         column_name_like,       new_data_type,          new_column_name,
@@ -715,7 +699,7 @@ VALUES ('sys_syn-informix',     100,            '{timestamp_infinity}', 'timesta
                 $$WHEN %1 >= '9999-12-31 23:59:59.99999'::timestamp without time zone $$ ||
                 $$THEN 'infinity'::timestamp without time zone ELSE %1 END$$);
 
-CREATE OR REPLACE FUNCTION sys_syn.in_column_transforms_check_new() RETURNS TRIGGER AS $$
+CREATE FUNCTION sys_syn.in_column_transforms_check_new () RETURNS TRIGGER AS $$
 BEGIN
         IF NEW.rule_group_id LIKE 'sys_syn%' THEN
                 RAISE EXCEPTION 'Rules starting with sys_syn are reserved for the sys_syn extension.'
@@ -726,7 +710,7 @@ END;
 $$ LANGUAGE plpgsql;
 ALTER FUNCTION sys_syn.in_column_transforms_check_new() OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.in_column_transforms_check_old() RETURNS TRIGGER AS $$
+CREATE FUNCTION sys_syn.in_column_transforms_check_old () RETURNS TRIGGER AS $$
 BEGIN
         IF OLD.rule_group_id LIKE 'sys_syn%' THEN
                 RAISE EXCEPTION 'Rules starting with sys_syn are reserved for the sys_syn extension.'
@@ -747,7 +731,7 @@ CREATE CONSTRAINT TRIGGER in_column_transforms_check_old
         DEFERRABLE INITIALLY DEFERRED
         FOR EACH ROW EXECUTE PROCEDURE sys_syn.in_column_transforms_check_old();
 
-CREATE OR REPLACE FUNCTION sys_syn.out_column_transforms_check_new() RETURNS TRIGGER AS $$
+CREATE FUNCTION sys_syn.out_column_transforms_check_new () RETURNS TRIGGER AS $$
 BEGIN
         IF NEW.rule_group_id LIKE 'sys_syn%' THEN
                 RAISE EXCEPTION 'Rules starting with sys_syn are reserved for the sys_syn extension.'
@@ -758,7 +742,7 @@ END;
 $$ LANGUAGE plpgsql;
 ALTER FUNCTION sys_syn.out_column_transforms_check_new() OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.out_column_transforms_check_old() RETURNS TRIGGER AS $$
+CREATE FUNCTION sys_syn.out_column_transforms_check_old () RETURNS TRIGGER AS $$
 BEGIN
         IF OLD.rule_group_id LIKE 'sys_syn%' THEN
                 RAISE EXCEPTION 'Rules starting with sys_syn are reserved for the sys_syn extension.'
@@ -780,7 +764,7 @@ CREATE CONSTRAINT TRIGGER out_column_transforms_check_old
         FOR EACH ROW EXECUTE PROCEDURE sys_syn.out_column_transforms_check_old();
 
 
-CREATE FUNCTION sys_syn.distribute_load(range_seconds int) RETURNS void
+CREATE FUNCTION sys_syn.distribute_load (range_seconds int) RETURNS void
         LANGUAGE plpgsql
         COST 30000
         AS $_$
@@ -790,7 +774,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.distribute_load(range_seconds int) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.node_id_local_get()
+CREATE FUNCTION sys_syn.node_id_local_get ()
         RETURNS text
         LANGUAGE plpgsql IMMUTABLE
         COST 20
@@ -820,7 +804,7 @@ END;
 $BODY$;
 ALTER FUNCTION sys_syn.node_id_local_get() OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_table_create_run_state()
+CREATE FUNCTION sys_syn.util_table_create_run_state ()
         RETURNS text
         LANGUAGE plpgsql IMMUTABLE
         COST 10
@@ -836,7 +820,7 @@ END;
 $BODY$;
 ALTER FUNCTION sys_syn.util_table_create_run_state() OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.in_table_add(
+CREATE FUNCTION sys_syn.in_table_create (
         schema                  regnamespace,
         in_table_id             text,
         in_group_id             text,
@@ -911,7 +895,7 @@ BEGIN
         VALUES (
                 schema,         in_table_id,    in_group_id,    _in_pull_id,    _attributes_array,
                 (SELECT COALESCE(MAX(in_pull_order), 0) + 1 FROM sys_syn.in_tables_def
-                 WHERE in_tables_def.in_pull_id = in_table_add.in_group_id),
+                 WHERE in_tables_def.in_pull_id = in_table_create.in_group_id),
                 full_prepull_id,                changes_prepull_id,
                 full_table_reference,           changes_table_reference,
                 full_sql,                       changes_sql,
@@ -1072,7 +1056,7 @@ BEGIN
         PERFORM sys_syn.util_in_table_code (
                 (SELECT in_tables_def
                 FROM    sys_syn.in_tables_def
-                WHERE   in_tables_def.in_table_id = in_table_add.in_table_id)
+                WHERE   in_tables_def.in_table_id = in_table_create.in_table_id)
         );
 
         PERFORM sys_syn.util_in_pulls_code (
@@ -1082,7 +1066,7 @@ BEGIN
         );
 END;
 $_$;
-ALTER FUNCTION sys_syn.in_table_add(
+ALTER FUNCTION sys_syn.in_table_create(
         schema                  regnamespace,
         in_table_id             text,
         in_group_id             text,
@@ -1102,7 +1086,7 @@ ALTER FUNCTION sys_syn.in_table_add(
         record_comparison_different     text,
         record_comparison_same          text) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.in_table_add_sql(
+CREATE FUNCTION sys_syn.in_table_create_sql (
         relation                        regclass,
         in_group_id                     text,
         schema                          regnamespace DEFAULT NULL::regnamespace,
@@ -1140,7 +1124,7 @@ BEGIN
                         SELECT  in_groups_def.parent_in_group_id,
                                 in_groups_def.in_column_transform_rule_group_ids
                         FROM    sys_syn.in_groups_def
-                        WHERE   in_groups_def.in_group_id = in_table_add_sql.in_group_id
+                        WHERE   in_groups_def.in_group_id = in_table_create_sql.in_group_id
                         UNION ALL
                         SELECT  in_groups_def.parent_in_group_id,
                                 in_groups_def.in_column_transform_rule_group_ids ||
@@ -1290,10 +1274,10 @@ BEGIN
 
                 IF NOT _omit THEN
                         IF _sql_buffer IS NULL THEN
-                                _sql_buffer := $$SELECT sys_syn.in_table_add (
+                                _sql_buffer := $$SELECT sys_syn.in_table_create(
                 schema          => $$||(
                                         SELECT  quote_literal(quote_ident(
-                                                COALESCE(in_table_add_sql.schema::text, pg_namespace.nspname))) || '::regnamespace'
+                                                COALESCE(in_table_create_sql.schema::text, pg_namespace.nspname)))||'::regnamespace'
                                         FROM    pg_catalog.pg_namespace JOIN
                                                 pg_catalog.pg_class ON
                                                         pg_class.relnamespace = pg_namespace.oid
@@ -1304,7 +1288,7 @@ BEGIN
                                         FROM    pg_class
                                         WHERE   pg_class.oid = relation::oid
                 )||$$,
-                in_group_id     => $$||quote_literal(in_table_add_sql.in_group_id)||$$,
+                in_group_id     => $$||quote_literal(in_table_create_sql.in_group_id)||$$,
                 in_pull_id      => NULL,
                 in_columns      => ARRAY[
 $$;
@@ -1332,7 +1316,7 @@ $$;
 
         _sql_buffer := _sql_buffer || $$
                 ]::sys_syn.create_in_column[],
-                full_table_reference    => $$||quote_literal(in_table_add_sql.relation::text)||$$,
+                full_table_reference    => $$||quote_literal(in_table_create_sql.relation::text)||$$,
                 changes_table_reference => NULL,
                 full_sql                => NULL,
                 changes_sql             => NULL,
@@ -1348,7 +1332,7 @@ $$;
         RETURN _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.in_table_add_sql(
+ALTER FUNCTION sys_syn.in_table_create_sql(
         relation                regclass,
         in_group_id             text,
         schema                  regnamespace,
@@ -1360,7 +1344,7 @@ ALTER FUNCTION sys_syn.in_table_add_sql(
         changes_prepull_id      text,
         in_table_id text) OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.in_table_columns_add_sql(
+CREATE FUNCTION sys_syn.in_table_columns_add_sql (
         in_table_id     text,
         relation        regclass DEFAULT NULL::regclass,
         id_columns      name[]  DEFAULT NULL::name[],
@@ -1594,7 +1578,7 @@ $BODY$
 ALTER FUNCTION sys_syn.in_table_columns_add_sql(text, regclass, name[], name[], name[], name[])
         OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.in_table_columns_add(
+CREATE FUNCTION sys_syn.in_table_columns_add (
         in_table_id text,
         in_columns sys_syn.create_in_column[])
         RETURNS void AS
@@ -1769,7 +1753,7 @@ $BODY$
 ALTER FUNCTION sys_syn.in_table_columns_add(text, sys_syn.create_in_column[])
         OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.in_trans_finish() RETURNS void
+CREATE FUNCTION sys_syn.in_trans_finish () RETURNS void
     LANGUAGE plpgsql COST 500
     AS $_$
 BEGIN
@@ -1934,7 +1918,7 @@ END;
 $$;
 ALTER FUNCTION sys_syn.in_trans_claim_start() OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.out_table_add_sql (
+CREATE FUNCTION sys_syn.out_table_create_sql (
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
@@ -1977,14 +1961,14 @@ BEGIN
         _in_table_def := (
                 SELECT  in_tables_def
                 FROM    sys_syn.in_tables_def
-                WHERE   in_tables_def.in_table_id = out_table_add_sql.in_table_id);
+                WHERE   in_tables_def.in_table_id = out_table_create_sql.in_table_id);
 
         _out_column_transform_rule_group_ids := (
                 WITH RECURSIVE all_transform_rule_group_ids(parent_out_group_id, out_column_transform_rule_group_ids) AS (
                         SELECT  out_groups_def.parent_out_group_id,
                                 out_groups_def.out_column_transform_rule_group_ids
                         FROM    sys_syn.out_groups_def
-                        WHERE   out_groups_def.out_group_id = out_table_add_sql.out_group_id
+                        WHERE   out_groups_def.out_group_id = out_table_create_sql.out_group_id
                         UNION ALL
                         SELECT  out_groups_def.parent_out_group_id,
                                 out_groups_def.out_column_transform_rule_group_ids ||
@@ -2000,7 +1984,7 @@ BEGIN
         FOR     _in_column IN
         SELECT  *
         FROM    sys_syn.in_table_columns_def
-        WHERE   in_table_columns_def.in_table_id = out_table_add_sql.in_table_id AND
+        WHERE   in_table_columns_def.in_table_id = out_table_create_sql.in_table_id AND
                 (limit_to_columns IS NULL OR in_table_columns_def.column_name  = ANY(limit_to_columns)) AND
                 (omit_columns     IS NULL OR in_table_columns_def.column_name != ANY(omit_columns))
         UNION ALL
@@ -2085,9 +2069,9 @@ BEGIN
                         IF      (_out_column_transform.data_type_like            IS NULL OR
                                         _data_type                      LIKE _out_column_transform.data_type_like) AND
                                 (_out_column_transform.in_table_id_like          IS NULL OR
-                                        out_table_add_sql.in_table_id   LIKE _out_column_transform.in_table_id_like) AND
+                                        out_table_create_sql.in_table_id   LIKE _out_column_transform.in_table_id_like) AND
                                 (_out_column_transform.out_group_id_like         IS NULL OR
-                                        out_table_add_sql.out_group_id  LIKE _out_column_transform.out_group_id_like) AND
+                                        out_table_create_sql.out_group_id  LIKE _out_column_transform.out_group_id_like) AND
                                 (_out_column_transform.column_name_like          IS NULL OR
                                         _in_out_column.column_name      LIKE _out_column_transform.column_name_like) AND
                                 (_out_column_transform.in_column_type            IS NULL OR
@@ -2164,8 +2148,8 @@ BEGIN
                 LOOP
 
                         IF _sql_buffer IS NULL THEN
-                                _sql_buffer := $$SELECT sys_syn.out_table_add (
-                schema                  => $$||quote_literal(out_table_add_sql.schema::text) || '::regnamespace'||$$,
+                                _sql_buffer := $$SELECT sys_syn.out_table_create (
+                schema                  => $$||quote_literal(out_table_create_sql.schema::text) || '::regnamespace'||$$,
                 in_table_id             => $$||quote_literal(in_table_id)||$$,
                 out_group_id            => $$||quote_literal(out_group_id)||$$,
                 out_columns             => ARRAY[
@@ -2207,7 +2191,7 @@ $$;
         RETURN _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.out_table_add_sql(
+ALTER FUNCTION sys_syn.out_table_create_sql(
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
@@ -2230,7 +2214,7 @@ ALTER FUNCTION sys_syn.out_table_add_sql(
 
 ) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.out_table_add(
+CREATE FUNCTION sys_syn.out_table_create (
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
@@ -2266,16 +2250,16 @@ DECLARE
         _sql_name_table_queue_pid       TEXT;
         _sql_name_table_queue_bulk      TEXT;
         _sql_name_type_in_id            TEXT;
-        _sql_name_temp                  TEXT;
         _sql_name_type_in_attributes    TEXT;
         _sql_name_type_in_no_diff       TEXT;
+        _sql_name_temp                  TEXT;
         _sql_buffer                     TEXT;
         _create_out_column              sys_syn.create_out_column;
 BEGIN
         _in_table_def := (
                 SELECT  in_tables_def
                 FROM    sys_syn.in_tables_def
-                WHERE   in_tables_def.in_table_id = out_table_add.in_table_id);
+                WHERE   in_tables_def.in_table_id = out_table_create.in_table_id);
 
         INSERT INTO sys_syn.out_tables_def(
                 in_table_id,    out_group_id,   schema, data_view,      out_log_lifetime,       notification_channel,
@@ -2494,7 +2478,7 @@ $$;
         EXECUTE _sql_buffer;
 
         IF data_view THEN
-            _sql_buffer := 'CREATE UNLOGGED TABLE '||_sql_name_table_queue_bulk||$$ (
+                _sql_buffer := 'CREATE UNLOGGED TABLE '||_sql_name_table_queue_bulk||$$ (
         id              $$||_sql_name_type_in_id||$$ NOT NULL,
         hold_reason_id  integer,
         hold_reason_text text,
@@ -2509,7 +2493,7 @@ $$;
         END IF;
 
         _sql_name_temp := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_priority');
-        _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_sql_name_temp||'(id '||_sql_name_type_in_id||
+        _sql_buffer := 'CREATE FUNCTION '||_sql_name_temp||'(id '||_sql_name_type_in_id||
                 ', delta_type sys_syn.delta_type, attributes_new '||_sql_name_type_in_attributes||', no_diff_new '||
                 _sql_name_type_in_no_diff||', attributes_baseline '||_sql_name_type_in_attributes||')
   RETURNS smallint AS
@@ -2538,8 +2522,8 @@ $BODY$
                         (
                                 SELECT  COALESCE(MAX(out_view_columns_def.column_index), 0) + 1
                                 FROM    sys_syn.out_view_columns_def
-                                WHERE   out_view_columns_def.in_table_id = out_table_add.in_table_id AND
-                                        out_view_columns_def.out_group_id = out_table_add.out_group_id
+                                WHERE   out_view_columns_def.in_table_id = out_table_create.in_table_id AND
+                                        out_view_columns_def.out_group_id = out_table_create.out_group_id
                         ),
                         _create_out_column.column_name, _create_out_column.column_expression,
                         _create_out_column.queue_column_name,   _create_out_column.queue_column_expression);
@@ -2549,14 +2533,14 @@ $BODY$
         PERFORM sys_syn.util_out_table_code(
                 (SELECT out_tables_def
                 FROM    sys_syn.out_tables_def
-                WHERE   out_tables_def.in_table_id      = out_table_add.in_table_id AND
-                        out_tables_def.out_group_id     = out_table_add.out_group_id)
+                WHERE   out_tables_def.in_table_id      = out_table_create.in_table_id AND
+                        out_tables_def.out_group_id     = out_table_create.out_group_id)
         );
 
         PERFORM sys_syn.util_in_table_code(_in_table_def);
 END;
 $_$;
-ALTER FUNCTION sys_syn.out_table_add(
+ALTER FUNCTION sys_syn.out_table_create(
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
@@ -2577,7 +2561,7 @@ ALTER FUNCTION sys_syn.out_table_add(
         record_comparison_same          text) OWNER TO postgres;
 
 
-CREATE FUNCTION sys_syn.trans_id_get() RETURNS sys_syn.trans_id
+CREATE FUNCTION sys_syn.trans_id_get () RETURNS sys_syn.trans_id
         LANGUAGE plpgsql STABLE
         AS $_$
 DECLARE
@@ -2609,7 +2593,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.trans_id_get() OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_column_name_to_data_type(in_table_id text, column_name name) RETURNS text
+CREATE FUNCTION sys_syn.util_column_name_to_data_type (in_table_id text, column_name name) RETURNS text
         LANGUAGE plpgsql STABLE
         AS $_$
 DECLARE
@@ -2687,7 +2671,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.util_column_name_to_data_type(in_table_id text, column_name name) OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.util_column_name_to_in_column_type(in_table_id text, column_name name)
+CREATE OR REPLACE FUNCTION sys_syn.util_column_name_to_in_column_type (in_table_id text, column_name name)
         RETURNS sys_syn.in_column_type
         LANGUAGE plpgsql STABLE
         AS $_$
@@ -2766,7 +2750,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.util_column_name_to_in_column_type(in_table_id text, column_name name) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_in_column_type_to_column_name(in_column_type sys_syn.in_column_type) RETURNS text
+CREATE FUNCTION sys_syn.util_in_column_type_to_column_name (in_column_type sys_syn.in_column_type) RETURNS text
         LANGUAGE plpgsql IMMUTABLE COST 10
         AS $$
 DECLARE
@@ -2792,7 +2776,7 @@ END;
 $$;
 ALTER FUNCTION sys_syn.util_in_column_type_to_column_name(in_column_type sys_syn.in_column_type) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_in_pulls_code(in_pull_def sys_syn.in_pulls_def) RETURNS void
+CREATE FUNCTION sys_syn.util_in_pulls_code (in_pull_def sys_syn.in_pulls_def) RETURNS void
         LANGUAGE plpgsql
         AS $_$
 DECLARE
@@ -3351,7 +3335,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.util_in_pulls_code(in_pull_def sys_syn.in_pulls_def) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_in_table_code(in_table_def sys_syn.in_tables_def) RETURNS void
+CREATE FUNCTION sys_syn.util_in_table_code (in_table_def sys_syn.in_tables_def) RETURNS void
         LANGUAGE plpgsql
         AS $_$
 DECLARE
@@ -3523,7 +3507,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.util_in_table_code(in_table_def sys_syn.in_tables_def) OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.util_out_tables_for_pro_for_tab_cols_code(
+CREATE FUNCTION sys_syn.util_out_tables_for_pro_for_tab_cols_code (
         out_table_def sys_syn.out_tables_def,
         primary_table_id text)
         RETURNS text AS
@@ -3581,7 +3565,7 @@ ALTER FUNCTION sys_syn.util_out_tables_for_pro_for_tab_cols_code(
         out_table_def sys_syn.out_tables_def,
         primary_table_id text) OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.util_out_tables_for_pro_for_tabs_cols_code(out_table_def sys_syn.out_tables_def)
+CREATE FUNCTION sys_syn.util_out_tables_for_pro_for_tabs_cols_code (out_table_def sys_syn.out_tables_def)
         RETURNS text AS
 $BODY$
 DECLARE
@@ -3614,7 +3598,7 @@ $BODY$
   COST 100;
 ALTER FUNCTION sys_syn.util_out_tables_for_pro_for_tabs_cols_code(out_table_def sys_syn.out_tables_def) OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.util_in_columns_format (
+CREATE FUNCTION sys_syn.util_in_columns_format (
         in_table_id     text,
         in_column_type  sys_syn.in_column_type,
         format_text     text,
@@ -3680,7 +3664,7 @@ ALTER FUNCTION sys_syn.util_in_columns_format(in_table_id text, in_column_type s
         column_delimiter text)
         OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_out_table_view(out_table_def sys_syn.out_tables_def) RETURNS void
+CREATE FUNCTION sys_syn.util_out_table_view (out_table_def sys_syn.out_tables_def) RETURNS void
         LANGUAGE plpgsql COST 10
         AS $_$
 DECLARE
@@ -3828,7 +3812,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.util_out_table_view(out_table_def sys_syn.out_tables_def) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_record_comparison_code(
+CREATE FUNCTION sys_syn.util_record_comparison_code (
         left_table_alias        text,
         right_table_alias       text,
         out_table_def           sys_syn.out_tables_def,
@@ -3891,7 +3875,7 @@ ALTER FUNCTION sys_syn.util_record_comparison_code(
         out_table_def           sys_syn.out_tables_def,
         attributes_different    boolean) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_out_table_code(out_table_def sys_syn.out_tables_def) RETURNS void
+CREATE FUNCTION sys_syn.util_out_table_code (out_table_def sys_syn.out_tables_def) RETURNS void
         LANGUAGE plpgsql
         AS $_$
 DECLARE
@@ -3953,7 +3937,7 @@ BEGIN
                 _function_name_ident := out_table_def.schema::text || '.' ||
                         quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_foreign_processed');
                 _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||_function_name_ident||$$() RETURNS BOOLEAN
+CREATE FUNCTION $$||_function_name_ident||$$() RETURNS BOOLEAN
         LANGUAGE plpgsql COST 500
         AS $DEFINITION$
 DECLARE
@@ -4003,7 +3987,7 @@ $$;
         _function_name_ident := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_move');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||_function_name_ident||
+CREATE FUNCTION $$||_function_name_ident||
                                                  $$(latest_trans_id sys_syn.trans_id DEFAULT NULL::sys_syn.trans_id) RETURNS BOOLEAN
         LANGUAGE plpgsql COST 500
         AS $DEFINITION$
@@ -4407,7 +4391,7 @@ $$;
         _function_name_ident := out_table_def.schema::text || '.' ||
                 quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_processed');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||_function_name_ident||$$() RETURNS BOOLEAN
+CREATE FUNCTION $$||_function_name_ident||$$() RETURNS BOOLEAN
         LANGUAGE plpgsql COST 500
         AS $DEFINITION$
 DECLARE
@@ -4609,7 +4593,7 @@ $$;
 
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_claim');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(
+CREATE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(
         queue_id        smallint        DEFAULT NULL,
         limit_rows      integer         DEFAULT NULL,
         queue_count     smallint        DEFAULT NULL,
@@ -4690,7 +4674,7 @@ $$;
         IF out_table_def.data_view THEN
                 _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_bulk');
                 _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(queue_id SMALLINT)
+CREATE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(queue_id SMALLINT)
         RETURNS boolean
         LANGUAGE plpgsql
         COST 20
@@ -4734,7 +4718,7 @@ $$;
 
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_id_claim');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$()
+CREATE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$()
         RETURNS smallint
         LANGUAGE plpgsql
         SECURITY DEFINER
@@ -4819,7 +4803,7 @@ $$;
 
         _function_name_ident := quote_ident(out_table_def.in_table_id || '_' || out_table_def.out_group_id||'_queue_pid_health');
         _sql_buffer := $$
-CREATE OR REPLACE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(
+CREATE FUNCTION $$||out_table_def.schema::text || '.' || _function_name_ident||$$(
         check_assignment_size   boolean DEFAULT true,
         check_pid_used_age      boolean DEFAULT true)
         RETURNS TABLE(result text)
@@ -4891,7 +4875,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.util_out_table_code(out_table_def sys_syn.out_tables_def) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_out_table_exists_code(out_table_def sys_syn.out_tables_def, code_indent smallint) RETURNS text
+CREATE FUNCTION sys_syn.util_out_table_exists_code (out_table_def sys_syn.out_tables_def, code_indent smallint) RETURNS text
         LANGUAGE plpgsql
         AS $_$
 DECLARE
@@ -4969,7 +4953,7 @@ $_$;
 ALTER FUNCTION sys_syn.util_out_table_exists_code(out_table_def sys_syn.out_tables_def, code_indent smallint)
         OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_out_tables_exists_code(in_table_def sys_syn.in_tables_def, code_indent smallint) RETURNS text
+CREATE FUNCTION sys_syn.util_out_tables_exists_code (in_table_def sys_syn.in_tables_def, code_indent smallint) RETURNS text
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -4995,7 +4979,7 @@ $$;
 ALTER FUNCTION sys_syn.util_out_tables_exists_code(in_table_def sys_syn.in_tables_def, code_indent smallint)
         OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.util_out_tables_orphaned_code(out_table_def sys_syn.out_tables_def) RETURNS text
+CREATE FUNCTION sys_syn.util_out_tables_orphaned_code (out_table_def sys_syn.out_tables_def) RETURNS text
     LANGUAGE plpgsql
     AS $_$
 DECLARE
@@ -5176,7 +5160,7 @@ END;
 $_$;
 ALTER FUNCTION sys_syn.util_out_tables_orphaned_code(out_table_def sys_syn.out_tables_def) OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.pre_pull_add_sql(
+CREATE FUNCTION sys_syn.pre_pull_add_sql (
         relation                        regclass,
         in_group_id                     text,
         schema                          regnamespace DEFAULT NULL,
@@ -5318,7 +5302,7 @@ $$;
 VALUES ($$ || quote_literal(_changes_prepull_id) || $$,   $$ || quote_literal(_name_schema) || $$);
 $$;
         END IF;
-        _return := _return || $$CREATE OR REPLACE FUNCTION $$ || _name_function_full || $$()
+        _return := _return || $$CREATE FUNCTION $$ || _name_function_full || $$()
         RETURNS boolean AS
 $BODY$
 DECLARE
@@ -5362,7 +5346,7 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 2000;
-SELECT sys_syn.in_table_add_sql(
+SELECT sys_syn.in_table_create_sql(
         relation        => '$$ || _name_unlogged_full || $$'::regclass,
         in_group_id     => $$ || quote_literal(in_group_id) || $$,
         schema          => $$ || quote_literal(_name_schema) || $$,
@@ -5392,7 +5376,7 @@ ALTER FUNCTION sys_syn.pre_pull_add_sql(
         limit_to_columns        name[])
         OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.in_pull_sequence_populate_assume(in_group_id text default null) RETURNS void
+CREATE FUNCTION sys_syn.in_pull_sequence_populate_assume (in_group_id text default null) RETURNS void
         LANGUAGE plpgsql COST 20
         AS $_$
 BEGIN
@@ -5910,7 +5894,7 @@ WHERE   out_tables_def.data_view
 ORDER BY pg_attribute.attnum;
 ALTER TABLE sys_syn.out_queue_data_view_columns_view OWNER TO postgres;
 
-CREATE OR REPLACE FUNCTION sys_syn.util_out_queue_data_view_columns_format (
+CREATE FUNCTION sys_syn.util_out_queue_data_view_columns_format (
         in_table_id     text,
         out_group_id    text,
         in_column_type  sys_syn.in_column_type,
@@ -5948,6 +5932,209 @@ ALTER FUNCTION sys_syn.util_out_queue_data_view_columns_format (
         in_column_type sys_syn.in_column_type,
         format_text text)
         OWNER TO postgres;
+
+CREATE FUNCTION sys_syn.out_table_drop (in_table_id text, out_group_id text) RETURNS void
+        LANGUAGE plpgsql
+        AS $_$
+DECLARE
+        _out_table_def                  sys_syn.out_tables_def%ROWTYPE;
+        _in_table_def                   sys_syn.in_tables_def%ROWTYPE;
+        _sql_command_prefix             TEXT;
+        _sql_name_type_in_id            TEXT;
+        _sql_name_type_in_attributes    TEXT;
+        _sql_name_type_in_no_diff       TEXT;
+        _sql_name_prefix                TEXT;
+BEGIN
+        _out_table_def := (
+                SELECT  out_tables_def
+                FROM    sys_syn.out_tables_def
+                WHERE   out_tables_def.in_table_id      = out_table_drop.in_table_id AND
+                        out_tables_def.out_group_id     = out_table_drop.out_group_id);
+
+        _in_table_def := (
+                SELECT  in_tables_def
+                FROM    sys_syn.in_tables_def
+                WHERE   in_tables_def.in_table_id = _out_table_def.in_table_id);
+
+        _sql_name_prefix        := _out_table_def.in_table_id || '_' || _out_table_def.out_group_id;
+
+        _sql_name_type_in_id            := _in_table_def.schema::text || '.' || quote_ident(_in_table_def.in_table_id||'_in_id');
+        _sql_name_type_in_attributes    := _in_table_def.schema::text || '.' ||
+                quote_ident(_in_table_def.in_table_id||'_in_attributes') ||
+                CASE WHEN _in_table_def.attributes_array THEN '[]' ELSE '' END;
+        _sql_name_type_in_no_diff       := _in_table_def.schema::text || '.' ||
+                quote_ident(_in_table_def.in_table_id||'_in_no_diff');
+
+        EXECUTE 'DROP TRIGGER ' || quote_ident(_sql_name_prefix||'_queue_update') || ' ON ' ||
+                _out_table_def.schema::text || '.' || quote_ident(_sql_name_prefix||'_queue');
+
+        _sql_command_prefix     := 'DROP FUNCTION IF EXISTS ' || _out_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_foreign_processed') || '()';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_move') || '(sys_syn.trans_id)';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_processed') || '()';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_update') || '()';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_claim') ||'(smallint, integer, smallint, boolean, smallint)';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_bulk') || '()';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_id_claim') || '()';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_pid_health') || '(boolean, boolean)';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_priority') || '(' || _sql_name_type_in_id ||
+                ', sys_syn.delta_type, ' || _sql_name_type_in_attributes || ', ' || _sql_name_type_in_no_diff || ', ' ||
+                _sql_name_type_in_attributes || ')';
+
+        _sql_command_prefix     := 'DROP TABLE IF EXISTS '|| _out_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_log');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_pid');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_bulk');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_exclude');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_temp');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_orphaned');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_locked');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_baseline');
+
+        DELETE
+        FROM    sys_syn.out_tables_state
+        WHERE   out_tables_state.in_table_id    = _out_table_def.in_table_id AND
+                out_tables_state.out_group_id   = _out_table_def.out_group_id;
+
+        DELETE
+        FROM    sys_syn.out_tables_def
+        WHERE   out_tables_def.in_table_id      = _out_table_def.in_table_id AND
+                out_tables_def.out_group_id     = _out_table_def.out_group_id;
+END;
+$_$
+        COST 40;
+ALTER FUNCTION sys_syn.out_table_drop(text, text)
+        OWNER TO postgres;
+
+CREATE FUNCTION sys_syn.in_pull_drop (in_pull_id text)
+  RETURNS void AS
+$BODY$
+DECLARE
+        _in_pull_def                    sys_syn.in_pulls_def%ROWTYPE;
+        _in_pull_sequence_ids_to_delete TEXT[];
+BEGIN
+        _in_pull_def := (
+                SELECT  in_pulls_def
+                FROM    sys_syn.in_pulls_def
+                WHERE   in_pulls_def.in_pull_id = in_pull_drop.in_pull_id);
+
+        SELECT  array_agg(in_pull_sequences_def.in_pull_sequence_id)
+        INTO    _in_pull_sequence_ids_to_delete
+        FROM    sys_syn.in_pull_sequences_def
+        WHERE   (
+                        SELECT  COUNT(*)
+                        FROM    sys_syn.in_pull_sequence_pulls
+                        WHERE   in_pull_sequence_pulls.in_pull_id = _in_pull_def.in_pull_id AND
+                                in_pull_sequence_pulls.in_pull_sequence_id = in_pull_sequences_def.in_pull_sequence_id
+                ) > 0 AND
+                (
+                        SELECT  COUNT(*)
+                        FROM    sys_syn.in_pull_sequence_pulls
+                        WHERE   in_pull_sequence_pulls.in_pull_id != _in_pull_def.in_pull_id AND
+                                in_pull_sequence_pulls.in_pull_sequence_id = in_pull_sequences_def.in_pull_sequence_id
+                ) = 0;
+
+        DELETE
+        FROM    sys_syn.in_pull_sequence_pulls
+        WHERE   in_pull_sequence_pulls.in_pull_id = _in_pull_def.in_pull_id;
+
+        DELETE
+        FROM    sys_syn.in_pull_sequences_def
+        WHERE   in_pull_sequences_def.in_pull_sequence_id = ANY(_in_pull_sequence_ids_to_delete);
+
+        DELETE
+        FROM    sys_syn.in_pulls_request
+        WHERE   in_pulls_request.in_pull_id = _in_pull_def.in_pull_id;
+
+        DELETE
+        FROM    sys_syn.in_pulls_state
+        WHERE   in_pulls_state.in_pull_id = _in_pull_def.in_pull_id;
+
+        DELETE
+        FROM    sys_syn.in_pulls_def
+        WHERE   in_pulls_def.in_pull_id = _in_pull_def.in_pull_id;
+END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 40;
+ALTER FUNCTION sys_syn.in_pull_drop(text)
+  OWNER TO postgres;
+
+CREATE FUNCTION sys_syn.in_table_drop (in_table_id text, cascade boolean default false)
+  RETURNS void AS
+$BODY$
+DECLARE
+        _in_table_def           sys_syn.in_tables_def%ROWTYPE;
+        _sql_command_prefix     TEXT;
+BEGIN
+        _in_table_def := (
+                SELECT  in_tables_def
+                FROM    sys_syn.in_tables_def
+                WHERE   in_tables_def.in_table_id = in_table_drop.in_table_id);
+
+        _sql_command_prefix := 'DROP FUNCTION IF EXISTS ' || _in_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_vacuum') || '(sys_syn.trans_id)';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_delete_unmoved') || '(sys_syn.trans_id)';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_pull') || '(boolean)';
+
+        _sql_command_prefix := 'DROP TABLE IF EXISTS '|| _in_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude');
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in');
+
+        _sql_command_prefix := 'DROP TYPE '|| _in_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_no_diff');
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_attributes');
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_id');
+
+        DELETE
+        FROM    sys_syn.in_foreign_keys
+        WHERE   in_foreign_keys.foreign_table_id = _in_table_def.in_table_id;
+
+        DELETE
+        FROM    sys_syn.in_table_columns_def
+        WHERE   in_table_columns_def.in_table_id = _in_table_def.in_table_id;
+
+        -- TODO:  Delete pulls specific to this?
+
+        DELETE
+        FROM    sys_syn.in_tables_def
+        WHERE   in_tables_def.in_table_id = _in_table_def.in_table_id;
+END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 40;
+ALTER FUNCTION sys_syn.in_table_drop(text, boolean)
+  OWNER TO postgres;
+
+CREATE FUNCTION sys_syn.prepull_drop (prepull_id text)
+  RETURNS void AS
+$BODY$
+DECLARE
+        _prepull_def                    sys_syn.prepulls_def%ROWTYPE;
+        _sql_command_prefix             TEXT;
+        _prepull_sequence_ids_to_delete TEXT[];
+BEGIN
+        _prepull_def := (
+                SELECT  prepulls_def
+                FROM    sys_syn.prepulls_def
+                WHERE   prepulls_def.prepull_id = prepull_drop.prepull_id);
+
+        _sql_command_prefix := 'DROP FUNCTION ' || _prepull_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_prepull_def.prepull_id||'_prepull_full') || '()';
+
+        _sql_command_prefix := 'DROP TABLE IF EXISTS '|| _prepull_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_prepull_def.prepull_id||'_prepull_full');
+
+        DELETE
+        FROM    sys_syn.prepulls_def
+        WHERE   prepulls_def.prepull_id = _prepull_def.prepull_id;
+END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 40;
+ALTER FUNCTION sys_syn.prepull_drop(text)
+  OWNER TO postgres;
 
 
 CREATE VIEW sys_syn.in_foreign_keys_view AS
