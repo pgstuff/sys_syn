@@ -107,7 +107,7 @@ CREATE SCHEMA user_data
 CREATE TABLE user_data.test_table (
         test_table_id integer NOT NULL,
         test_table_text text,
-        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_key));
+        CONSTRAINT test_table_pkey PRIMARY KEY (test_table_id));
 
 INSERT INTO user_data.test_table(
         test_table_id, test_table_text)
@@ -137,7 +137,9 @@ You may add an input table immediately using:
 
 [source,sql]
 ----
-EXECUTE sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
+DO $$BEGIN
+        EXECUTE sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
+END$$;
 ----
 
 IMPORTANT:  If the table is a foreign data wrapper (FDW), then you must specify the primary key or ID by adding "`, id_columns => ARRAY['id_col_name_here']`" to the `sys_syn.in_table_create_sql` function call.
@@ -177,6 +179,30 @@ SELECT sys_syn.in_table_create (
         changes_prepull_id      => NULL
 );
 ----
+
+
+
+===== Add New Columns
+
+You can generate the function call to add new columns to an existing table by specifying the in_table_id.
+
+[source,sql]
+----
+SELECT sys_syn.in_table_columns_add_sql('test_table');
+----
+
+Copy the resulting text into your SQL editor, make adjustments, and execute it.
+
+You may also add the new columns immediately using:
+
+[source,sql]
+----
+DO $$BEGIN
+        EXECUTE sys_syn.in_table_columns_add_sql('test_table');
+END$$;
+----
+
+
 
 ===== Drop an Input Table
 
@@ -466,7 +492,7 @@ See the `test` directory for more examples.
 
 == Copyright and License
 
-Copyright (c) 2016.
+Copyright (c) 2016-2017.
 
 Legal Notice:  See the COPYRIGHT file.
 

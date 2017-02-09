@@ -20,6 +20,12 @@ END$$;
 SET SESSION sys_syn.trans_id_curr = 0;
 
 
+/*CREATE TYPE sys_syn.partition_type AS ENUM (
+        'range',
+        'list'
+);
+ALTER TYPE sys_syn.partition_type OWNER TO postgres;*/
+
 CREATE TYPE sys_syn.trans_id_method AS ENUM (
         'seq',
         'txid'
@@ -42,7 +48,8 @@ CREATE TYPE sys_syn.create_in_column AS (
         array_order             smallint,
         foreign_key_index       smallint,
         primary_in_table_id     text,
-        primary_column_name     text
+        primary_column_name     text/*,
+        "collation"             name*/
 );
 ALTER TYPE sys_syn.create_in_column OWNER TO postgres;
 
@@ -88,7 +95,8 @@ ALTER TABLE sys_syn.trans_id_seq OWNER TO postgres;
 -- NOTE:  Using sys_syn.trans_id_method seq requires sys_syn.in_trans_*_start calls for queue processors.
 CREATE TABLE sys_syn.settings (
         trans_id_method         sys_syn.trans_id_method NOT NULL DEFAULT 'seq'::sys_syn.trans_id_method,
-        logical_replication     boolean                 NOT NULL DEFAULT false
+        logical_replication     boolean                 NOT NULL DEFAULT false,
+        comments                text                    NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.settings OWNER TO postgres;
 CREATE UNIQUE INDEX settings_1_row_idx
@@ -97,9 +105,10 @@ CREATE UNIQUE INDEX settings_1_row_idx
         ((true));
 
 CREATE TABLE sys_syn.prepulls_def (
-        prepull_id      text NOT NULL,
-        lock_id         serial NOT NULL,
-        schema          regnamespace NOT NULL
+        prepull_id      text            NOT NULL,
+        lock_id         serial          NOT NULL,
+        schema          regnamespace    NOT NULL,
+        comments        text            NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.prepulls_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.prepulls_def
@@ -108,7 +117,8 @@ ALTER TABLE ONLY sys_syn.prepulls_def
 CREATE TABLE sys_syn.in_groups_def (
         in_group_id             text NOT NULL,
         parent_in_group_id      text,
-        in_column_transform_rule_group_ids text[] DEFAULT NULL::text[]
+        in_column_transform_rule_group_ids text[] DEFAULT NULL::text[],
+        comments                text NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.in_groups_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.in_groups_def
@@ -131,8 +141,9 @@ CREATE TABLE sys_syn.in_column_transforms (
         expression              text,
         create_in_columns       sys_syn.create_in_column[],
         omit                    boolean,
-        final_ids               text[] DEFAULT '{}'::text[] NOT NULL,
-        final_rule              boolean DEFAULT FALSE NOT NULL
+        final_ids               text[]  DEFAULT '{}'::text[] NOT NULL,
+        final_rule              boolean DEFAULT FALSE NOT NULL,
+        comments                text    NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.in_column_transforms OWNER TO postgres;
 ALTER TABLE sys_syn.in_column_transforms
@@ -145,7 +156,8 @@ CREATE TABLE sys_syn.in_pulls_def (
         schema          regnamespace    NOT NULL,
         lock_id         integer         NOT NULL,
         pull_pre_sql    text,
-        pull_post_sql   text
+        pull_post_sql   text,
+        comments        text            NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.in_pulls_def OWNER TO postgres;
 CREATE SEQUENCE sys_syn.in_pulls_def_lock_id_seq
@@ -190,9 +202,13 @@ CREATE TABLE sys_syn.in_tables_def (
         changes_pre_sql         text,
         full_post_sql           text,
         changes_post_sql        text,
-        enable_deletes_implied  boolean DEFAULT TRUE NOT NULL,
+        enable_deletes_implied  boolean         NOT NULL DEFAULT TRUE,
         record_comparison_different     text,
-        record_comparison_same          text
+        record_comparison_same          text,
+/*      tablespace              name,
+        partition_by            sys_syn.partition_type,
+        partition_expression    text,*/
+        comments                text            NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.in_tables_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.in_tables_def
@@ -218,7 +234,8 @@ CREATE TABLE sys_syn.in_table_columns_def (
         column_index            smallint        NOT NULL,
         array_order             smallint,
         column_name             name            NOT NULL,
-        source_in_expression    text
+        source_in_expression    text,
+        comments                text            NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.in_table_columns_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.in_table_columns_def
@@ -235,6 +252,21 @@ ALTER TABLE sys_syn.in_table_columns_def
         ADD CONSTRAINT column_index_disallow_sign CHECK (column_index >= 0);
 ALTER TABLE sys_syn.in_table_columns_def
         ADD CONSTRAINT array_order_disallow_sign CHECK (array_order >= 0);
+
+/*CREATE TABLE sys_syn.in_table_partitions_def (
+        in_table_id             text            NOT NULL,
+        partition_name          text            NOT NULL,
+        partition_bound_spec    text            NOT NULL,
+        tablespace              name,
+        comments                text            NOT NULL DEFAULT ''
+);
+ALTER TABLE sys_syn.in_table_partitions_def OWNER TO postgres;
+ALTER TABLE ONLY sys_syn.in_table_partitions_def
+        ADD CONSTRAINT in_table_partitions_def_pkey PRIMARY KEY (in_table_id, partition_name);
+ALTER TABLE sys_syn.in_table_partitions_def
+  ADD CONSTRAINT in_table_partitions_def_in_table_id_fkey FOREIGN KEY (in_table_id)
+      REFERENCES sys_syn.in_tables_def (in_table_id) MATCH SIMPLE
+      ON UPDATE RESTRICT ON DELETE RESTRICT;*/
 
 CREATE TABLE sys_syn.in_foreign_keys (
         primary_table_id        text    NOT NULL,
@@ -305,9 +337,10 @@ ALTER TABLE ONLY sys_syn.in_trans_log
         ADD CONSTRAINT in_trans_log_pkey PRIMARY KEY (trans_id_in);
 
 CREATE TABLE sys_syn.out_groups_def (
-        out_group_id                            text NOT NULL,
+        out_group_id                            text    NOT NULL,
         parent_out_group_id                     text,
-        out_column_transform_rule_group_ids     text[]
+        out_column_transform_rule_group_ids     text[],
+        comments                                text    NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.out_groups_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.out_groups_def
@@ -325,17 +358,18 @@ CREATE TABLE sys_syn.out_tables_def (
         data_view               boolean         NOT NULL,
         out_log_lifetime        interval,
         notification_channel    text,
-        enable_adds             boolean DEFAULT TRUE NOT NULL,
-        enable_changes          boolean DEFAULT TRUE NOT NULL,
-        enable_deletes          boolean DEFAULT TRUE NOT NULL,
+        enable_adds             boolean         NOT NULL DEFAULT TRUE,
+        enable_changes          boolean         NOT NULL DEFAULT TRUE,
+        enable_deletes          boolean         NOT NULL DEFAULT TRUE,
         condition_sql           text,
-        claim_limit_rows        integer DEFAULT 2147483647 NOT NULL,
+        claim_limit_rows        integer         NOT NULL DEFAULT 2147483647,
         claim_queue_count       smallint,
-        claim_fixed_by_id       boolean DEFAULT false NOT NULL,
+        claim_fixed_by_id       boolean         NOT NULL DEFAULT false,
         claim_random_sample     smallint,
         queue_pid_used_age      interval,
         record_comparison_different     text,
-        record_comparison_same          text
+        record_comparison_same          text,
+        comments                text            NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.out_tables_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.out_tables_def
@@ -409,8 +443,9 @@ CREATE TABLE sys_syn.out_column_transforms (
         expression              text,
         create_out_columns      sys_syn.create_out_column[],
         omit                    boolean,
-        final_ids               text[] DEFAULT '{}'::text[] NOT NULL,
-        final_rule              boolean DEFAULT FALSE NOT NULL
+        final_ids               text[]  NOT NULL DEFAULT '{}'::text[],
+        final_rule              boolean NOT NULL DEFAULT FALSE,
+        comments                text    NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.out_column_transforms OWNER TO postgres;
 ALTER TABLE sys_syn.out_column_transforms
@@ -419,7 +454,8 @@ CREATE UNIQUE INDEX ON sys_syn.out_column_transforms (
         priority, data_type_like, in_table_id_like, out_group_id_like, schema_like, in_column_type, column_name_like);
 
 CREATE TABLE sys_syn.in_pull_sequences_def (
-        in_pull_sequence_id text NOT NULL
+        in_pull_sequence_id     text    NOT NULL,
+        comments                text    NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.in_pull_sequences_def OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.in_pull_sequences_def
@@ -428,7 +464,8 @@ ALTER TABLE ONLY sys_syn.in_pull_sequences_def
 CREATE TABLE sys_syn.in_pull_sequence_pulls (
         in_pull_sequence_id     text            NOT NULL,
         sequence_index          smallint        NOT NULL,
-        in_pull_id              text            NOT NULL
+        in_pull_id              text            NOT NULL,
+        comments                text            NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.in_pull_sequence_pulls OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.in_pull_sequence_pulls
@@ -1147,11 +1184,13 @@ BEGIN
         FOR     _column IN
         SELECT  *
         FROM    pg_catalog.pg_attribute
-        WHERE   pg_attribute.attrelid = relation AND
+        WHERE   pg_attribute.attrelid = in_table_create_sql.relation AND
                 pg_attribute.attnum > 0 AND
                 NOT pg_attribute.attisdropped AND
-                (limit_to_columns IS NULL OR pg_attribute.attname  = ANY(limit_to_columns)) AND
-                (omit_columns     IS NULL OR pg_attribute.attname != ALL(omit_columns))
+                (in_table_create_sql.limit_to_columns IS NULL OR
+                        pg_attribute.attname  = ANY(in_table_create_sql.limit_to_columns)) AND
+                (in_table_create_sql.omit_columns     IS NULL OR
+                        pg_attribute.attname != ALL(in_table_create_sql.omit_columns))
         ORDER BY pg_attribute.attnum
         LOOP
 
@@ -1988,7 +2027,7 @@ BEGIN
                 (limit_to_columns IS NULL OR in_table_columns_def.column_name  = ANY(limit_to_columns)) AND
                 (omit_columns     IS NULL OR in_table_columns_def.column_name != ANY(omit_columns))
         UNION ALL
-        SELECT  *
+        SELECT  *, NULL
         FROM    (
                         VALUES  ('sys_syn_in_queue',-127,NULL::smallint,'sys_syn_trans_id_in',          'trans_id_in'),
                                 ('sys_syn_in_queue',-126,NULL,          'sys_syn_delta_type',           'delta_type'),
@@ -2517,7 +2556,7 @@ $BODY$
                         in_table_id,    out_group_id,
                         column_index,
                         column_name,                    column_expression,
-                        queue_column_name,      queue_column_expression)
+                        queue_column_name,                      queue_column_expression)
                 VALUES (in_table_id,    out_group_id,
                         (
                                 SELECT  COALESCE(MAX(out_view_columns_def.column_index), 0) + 1
@@ -3418,9 +3457,9 @@ BEGIN$$;
         ORDER BY out_tables_def.out_group_id
         LOOP
                 _sql_buffer := _sql_buffer || $$
-DELETE FROM $$ || quote_ident(_out_table_def.schema::text) || '.' ||
-        quote_ident(_out_table_def.in_table_id||'_'||_out_table_def.out_group_id||'_log') || $$
-WHERE   processed_time < CURRENT_TIMESTAMP - (
+        DELETE FROM $$ || quote_ident(_out_table_def.schema::text) || '.' ||
+                quote_ident(_out_table_def.in_table_id||'_'||_out_table_def.out_group_id||'_log') || $$
+        WHERE   processed_time < CURRENT_TIMESTAMP - (
 
                 SELECT  COALESCE(out_log_lifetime, INTERVAL '0 days')
                 FROM    sys_syn.out_tables_def
@@ -4613,7 +4652,7 @@ DECLARE
 BEGIN
         SELECT  COALESCE($$||_function_name_ident||$$.limit_rows,    out_tables_def.claim_limit_rows),
                 COALESCE($$||_function_name_ident||$$.queue_count,   out_tables_def.claim_queue_count),
-                COALESCE($$||_function_name_ident||$$.fixed_by_id,  out_tables_def.claim_fixed_by_id),
+                COALESCE($$||_function_name_ident||$$.fixed_by_id,   out_tables_def.claim_fixed_by_id),
                 COALESCE($$||_function_name_ident||$$.random_sample, out_tables_def.claim_random_sample)
         INTO    _limit_rows,
                 _queue_count,
@@ -6175,6 +6214,7 @@ SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_pulls_def', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_pulls_request', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_pulls_state', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_table_columns_def', '');
+/*SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_table_partitions_def', '');*/
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_tables_def', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_trans_log', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.out_column_transforms', $$WHERE rule_group_id NOT LIKE 'sys_syn-%'$$);

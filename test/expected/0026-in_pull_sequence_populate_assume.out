@@ -19,15 +19,15 @@ SELECT sys_syn.in_pull_sequence_populate_assume();
 (1 row)
 
 SELECT * FROM sys_syn.in_pull_sequences_def;
- in_pull_sequence_id 
----------------------
- in
+ in_pull_sequence_id | comments 
+---------------------+----------
+ in                  | 
 (1 row)
 
 SELECT * FROM sys_syn.in_pull_sequence_pulls;
- in_pull_sequence_id | sequence_index | in_pull_id 
----------------------+----------------+------------
- in                  |              1 | test_table
+ in_pull_sequence_id | sequence_index | in_pull_id | comments 
+---------------------+----------------+------------+----------
+ in                  |              1 | test_table | 
 (1 row)
 
 ROLLBACK;
