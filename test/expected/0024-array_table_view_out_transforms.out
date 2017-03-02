@@ -1,6 +1,6 @@
 BEGIN;
-CREATE EXTENSION tinyint
-    SCHEMA public;
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
@@ -17,10 +17,10 @@ SELECT sys_syn.in_table_create (
                 'in',
                 NULL,
                 ARRAY[
-                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
-                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,)$COL$,
-                       $COL$("test_table_date","date",Attribute,"in_source.test_table_date",,,,)$COL$,
-                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
+                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,,)$COL$,
+                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,,)$COL$,
+                       $COL$("test_table_date","date",Attribute,"in_source.test_table_date",,,,,)$COL$,
+                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,,)$COL$
                 ]::sys_syn.create_in_column[],
                 'user_data.test_table',
                 NULL
@@ -66,65 +66,66 @@ INSERT INTO sys_syn.out_groups_def (
         out_group_id,   out_column_transform_rule_group_ids)
 VALUES ('out',          ARRAY['time_zone_us_eastern','sys_syn-mssql','upper']);
 SELECT sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_columns => ARRAY['sys_syn_hold_reason_text'], data_view => TRUE);
-                                                                                                                         out_table_create_sql                                                                                                                          
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- SELECT sys_syn.out_table_create (                                                                                                                                                                                                                                    +
-                 schema                  => 'user_data'::regnamespace,                                                                                                                                                                                                +
-                 in_table_id             => 'test_table',                                                                                                                                                                                                             +
-                 out_group_id            => 'out',                                                                                                                                                                                                                    +
-                 out_columns             => ARRAY[                                                                                                                                                                                                                    +
-                        $COL$("sys_syn_trans_id_in","out_queue.trans_id_in",,)$COL$,                                                                                                                                                                                  +
-                        $COL$("sys_syn_delta_type","out_queue.delta_type",,)$COL$,                                                                                                                                                                                    +
-                        $COL$("sys_syn_queue_state","out_queue.queue_state",queue_state,"new.sys_syn_queue_state")$COL$,                                                                                                                                              +
-                        $COL$("sys_syn_queue_id","out_queue.queue_id",queue_id,"new.sys_syn_queue_id")$COL$,                                                                                                                                                          +
-                        $COL$("sys_syn_queue_priority","out_queue.queue_priority",queue_priority,"new.sys_syn_queue_priority")$COL$,                                                                                                                                  +
-                        $COL$("sys_syn_hold_updated","out_queue.hold_updated",,)$COL$,                                                                                                                                                                                +
-                        $COL$("sys_syn_hold_trans_id_first","out_queue.hold_trans_id_first",,)$COL$,                                                                                                                                                                  +
-                        $COL$("sys_syn_hold_trans_id_last","out_queue.hold_trans_id_last",,)$COL$,                                                                                                                                                                    +
-                        $COL$("sys_syn_hold_reason_count","out_queue.hold_reason_count",,)$COL$,                                                                                                                                                                      +
-                        $COL$("sys_syn_hold_reason_id","out_queue.hold_reason_id",hold_reason_id,"new.sys_syn_hold_reason_id")$COL$,                                                                                                                                  +
-                        $COL$("sys_syn_processed_time","out_queue.processed_time",processed_time,"new.sys_syn_processed_time")$COL$,                                                                                                                                  +
-                        $COL$("sys_syn_attribute_array_ordinal","in_attributes.sys_syn_attribute_array_ordinal::int",,)$COL$,                                                                                                                                         +
-                        $COL$("test_table_id","(in_source.id).test_table_id",,)$COL$,                                                                                                                                                                                 +
-                        $COL$("test_table_updated","in_attributes.test_table_updated AT TIME ZONE 'US/Eastern'",,)$COL$,                                                                                                                                              +
-                        $COL$("test_table_date","CASE WHEN in_attributes.test_table_date < '0001-01-01'::DATE THEN '0001-01-01'::DATE WHEN in_attributes.test_table_date > '9999-12-31'::DATE THEN '9999-12-31'::DATE ELSE in_attributes.test_table_date END",,)$COL$,+
-                        $COL$("test_table_text","UPPER(in_attributes.test_table_text) || ' - ' || in_attributes.test_table_text",,)$COL$                                                                                                                              +
-                 ]::sys_syn.create_out_column[],                                                                                                                                                                                                                      +
-                 data_view               => 'true',                                                                                                                                                                                                                   +
-                 out_log_lifetime        => NULL,                                                                                                                                                                                                                     +
-                 notification_channel    => NULL,                                                                                                                                                                                                                     +
-                 enable_adds             => 'true',                                                                                                                                                                                                                   +
-                 enable_changes          => 'true',                                                                                                                                                                                                                   +
-                 enable_deletes          => 'true',                                                                                                                                                                                                                   +
-                 condition_sql           => NULL,                                                                                                                                                                                                                     +
-                 claim_limit_rows        => '2147483647',                                                                                                                                                                                                             +
-                 claim_queue_count       => NULL,                                                                                                                                                                                                                     +
-                 claim_fixed_by_id       => 'false',                                                                                                                                                                                                                  +
-                 claim_random_sample     => NULL,                                                                                                                                                                                                                     +
-                 queue_pid_used_age      => NULL,                                                                                                                                                                                                                     +
-                 record_comparison_different=> NULL,                                                                                                                                                                                                                  +
-                 record_comparison_same     => NULL                                                                                                                                                                                                                   +
+                                                                                                                              out_table_create_sql                                                                                                                               
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.out_table_create (                                                                                                                                                                                                                                             +
+                 schema                  => 'user_data'::regnamespace,                                                                                                                                                                                                          +
+                 in_table_id             => 'test_table',                                                                                                                                                                                                                       +
+                 out_group_id            => 'out',                                                                                                                                                                                                                              +
+                 out_columns             => ARRAY[                                                                                                                                                                                                                              +
+                        $COL$("sys_syn_trans_id_in","out_queue.trans_id_in",,,)$COL$,                                                                                                                                                                                           +
+                        $COL$("sys_syn_delta_type","out_queue.delta_type",,,)$COL$,                                                                                                                                                                                             +
+                        $COL$("sys_syn_queue_state","out_queue.queue_state",queue_state,"new.sys_syn_queue_state",)$COL$,                                                                                                                                                       +
+                        $COL$("sys_syn_queue_id","out_queue.queue_id",queue_id,"new.sys_syn_queue_id",)$COL$,                                                                                                                                                                   +
+                        $COL$("sys_syn_queue_priority","out_queue.queue_priority",queue_priority,"new.sys_syn_queue_priority",)$COL$,                                                                                                                                           +
+                        $COL$("sys_syn_hold_updated","out_queue.hold_updated",,,)$COL$,                                                                                                                                                                                         +
+                        $COL$("sys_syn_hold_trans_id_first","out_queue.hold_trans_id_first",,,)$COL$,                                                                                                                                                                           +
+                        $COL$("sys_syn_hold_trans_id_last","out_queue.hold_trans_id_last",,,)$COL$,                                                                                                                                                                             +
+                        $COL$("sys_syn_hold_reason_count","out_queue.hold_reason_count",,,)$COL$,                                                                                                                                                                               +
+                        $COL$("sys_syn_hold_reason_id","out_queue.hold_reason_id",hold_reason_id,"new.sys_syn_hold_reason_id",)$COL$,                                                                                                                                           +
+                        $COL$("sys_syn_processed_time","out_queue.processed_time",processed_time,"new.sys_syn_processed_time",)$COL$,                                                                                                                                           +
+                        $COL$("sys_syn_attribute_array_ordinal","in_attributes.sys_syn_attribute_array_ordinal::int",,,Attribute)$COL$,                                                                                                                                         +
+                        $COL$("test_table_id","(out_queue.id).test_table_id",,,Id)$COL$,                                                                                                                                                                                        +
+                        $COL$("test_table_updated","in_attributes.test_table_updated AT TIME ZONE 'US/Eastern'",,,Attribute)$COL$,                                                                                                                                              +
+                        $COL$("test_table_date","CASE WHEN in_attributes.test_table_date < '0001-01-01'::DATE THEN '0001-01-01'::DATE WHEN in_attributes.test_table_date > '9999-12-31'::DATE THEN '9999-12-31'::DATE ELSE in_attributes.test_table_date END",,,Attribute)$COL$,+
+                        $COL$("test_table_text","UPPER(in_attributes.test_table_text) || ' - ' || in_attributes.test_table_text",,,Attribute)$COL$                                                                                                                              +
+                 ]::sys_syn.create_out_column[],                                                                                                                                                                                                                                +
+                 data_view               => 'true',                                                                                                                                                                                                                             +
+                 out_log_lifetime        => NULL,                                                                                                                                                                                                                               +
+                 out_partitions          => ARRAY[                                                                                                                                                                                                                              +
+                        $PART$()$PART$]::sys_syn.create_out_partition[],                                                                                                                                                                                                        +
+                 enable_adds             => 'true',                                                                                                                                                                                                                             +
+                 enable_changes          => 'true',                                                                                                                                                                                                                             +
+                 enable_deletes          => 'true',                                                                                                                                                                                                                             +
+                 condition_sql           => NULL,                                                                                                                                                                                                                               +
+                 claim_limit_rows        => '2147483647',                                                                                                                                                                                                                       +
+                 claim_queue_count       => NULL,                                                                                                                                                                                                                               +
+                 claim_fixed_by_id       => 'false',                                                                                                                                                                                                                            +
+                 claim_random_sample     => NULL,                                                                                                                                                                                                                               +
+                 queue_pid_used_age      => NULL,                                                                                                                                                                                                                               +
+                 record_comparison_different=> NULL,                                                                                                                                                                                                                            +
+                 record_comparison_same     => NULL                                                                                                                                                                                                                             +
          );
 (1 row)
 
 DO $$BEGIN
     EXECUTE sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_columns => ARRAY['sys_syn_hold_reason_text'], data_view => TRUE);
 END$$;
-ALTER TABLE user_data.test_table_out_queue
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE user_data.test_table_out_queue_1
+  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in_1 (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 SELECT user_data.test_table_pull(FALSE);
  test_table_pull 
 -----------------
  t
 (1 row)
 
-SELECT user_data.test_table_out_move();
- test_table_out_move 
----------------------
+SELECT user_data.test_table_out_move_1();
+ test_table_out_move_1 
+-----------------------
  t
 (1 row)
 
-SELECT * FROM user_data.test_table_out_queue_data;
+SELECT * FROM user_data.test_table_out_queue_data_1;
  sys_syn_id | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_processed_time | sys_syn_attribute_array_ordinal | test_table_id |    test_table_updated    | test_table_date |       test_table_text       
 ------------+---------------------+--------------------+---------------------+------------------+------------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+------------------------+---------------------------------+---------------+--------------------------+-----------------+-----------------------------
  (1)        |                   1 | Add                | Unclaimed           |                  |                        |                      |                             |                            |                           |                        |                        |                               1 |             1 | Thu Jan 01 22:04:05 2009 | 02-01-2009      | TEST_DATA V1 - test_data v1
@@ -132,29 +133,29 @@ SELECT * FROM user_data.test_table_out_queue_data;
  (2)        |                   1 | Add                | Unclaimed           |                  |                        |                      |                             |                            |                           |                        |                        |                               1 |             2 | Sat Jan 01 22:04:05 2011 | 04-01-2009      | TEST_DATA - test_data
 (3 rows)
 
-SELECT user_data.test_table_vacuum();
- test_table_vacuum 
--------------------
+SELECT user_data.test_table_vacuum_1();
+ test_table_vacuum_1 
+---------------------
  
 (1 row)
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-SELECT user_data.test_table_out_processed();
- test_table_out_processed 
---------------------------
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+SELECT user_data.test_table_out_processed_1();
+ test_table_out_processed_1 
+----------------------------
  t
 (1 row)
 
-SELECT * FROM user_data.test_table_out_queue_data;
+SELECT * FROM user_data.test_table_out_queue_data_1;
  sys_syn_id | sys_syn_trans_id_in | sys_syn_delta_type | sys_syn_queue_state | sys_syn_queue_id | sys_syn_queue_priority | sys_syn_hold_updated | sys_syn_hold_trans_id_first | sys_syn_hold_trans_id_last | sys_syn_hold_reason_count | sys_syn_hold_reason_id | sys_syn_processed_time | sys_syn_attribute_array_ordinal | test_table_id |    test_table_updated    | test_table_date |    test_table_text    
 ------------+---------------------+--------------------+---------------------+------------------+------------------------+----------------------+-----------------------------+----------------------------+---------------------------+------------------------+------------------------+---------------------------------+---------------+--------------------------+-----------------+-----------------------
  (2)        |                   1 | Add                | Unclaimed           |                  |                        |                      |                             |                            |                           |                        |                        |                               1 |             2 | Sat Jan 01 22:04:05 2011 | 04-01-2009      | TEST_DATA - test_data
 (1 row)
 
-SELECT user_data.test_table_vacuum();
- test_table_vacuum 
--------------------
+SELECT user_data.test_table_vacuum_1();
+ test_table_vacuum_1 
+---------------------
  
 (1 row)
 

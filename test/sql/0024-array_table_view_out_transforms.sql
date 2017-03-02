@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -23,10 +22,10 @@ SELECT sys_syn.in_table_create (
                 'in',
                 NULL,
                 ARRAY[
-                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
-                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,)$COL$,
-                       $COL$("test_table_date","date",Attribute,"in_source.test_table_date",,,,)$COL$,
-                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
+                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,,)$COL$,
+                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,,)$COL$,
+                       $COL$("test_table_date","date",Attribute,"in_source.test_table_date",,,,,)$COL$,
+                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,,)$COL$
                 ]::sys_syn.create_in_column[],
                 'user_data.test_table',
                 NULL
@@ -78,24 +77,24 @@ DO $$BEGIN
     EXECUTE sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_columns => ARRAY['sys_syn_hold_reason_text'], data_view => TRUE);
 END$$;
 
-ALTER TABLE user_data.test_table_out_queue
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE user_data.test_table_out_queue_1
+  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in_1 (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 SELECT user_data.test_table_pull(FALSE);
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT * FROM user_data.test_table_out_queue_data;
+SELECT * FROM user_data.test_table_out_queue_data_1;
 
-SELECT user_data.test_table_vacuum();
+SELECT user_data.test_table_vacuum_1();
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
 
-SELECT user_data.test_table_out_processed();
+SELECT user_data.test_table_out_processed_1();
 
-SELECT * FROM user_data.test_table_out_queue_data;
+SELECT * FROM user_data.test_table_out_queue_data_1;
 
-SELECT user_data.test_table_vacuum();
+SELECT user_data.test_table_vacuum_1();
 
 ROLLBACK;

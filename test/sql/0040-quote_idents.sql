@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA "User Data"
@@ -34,15 +33,15 @@ DO $$BEGIN
 END$$;
 
 SELECT "User Data"."Test Table_pull"(FALSE);
-SELECT "User Data"."Test Table_Out Group_move"();
-UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
-UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
-SELECT "User Data"."Test Table_Out Group_processed"();
+SELECT "User Data"."Test Table_Out Group_move_1"();
+UPDATE "User Data"."Test Table_Out Group_queue_1" SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
+UPDATE "User Data"."Test Table_Out Group_queue_1" SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
+SELECT "User Data"."Test Table_Out Group_processed_1"();
 
 SELECT  out_baseline.id,
         (in_data.id).*,
         (in_data.attributes).*
-FROM    "User Data"."Test Table_Out Group_baseline" out_baseline
-        LEFT JOIN "User Data"."Test Table_in" AS in_data USING (trans_id_in, id);
+FROM    "User Data"."Test Table_Out Group_baseline_1" out_baseline
+        LEFT JOIN "User Data"."Test Table_in_1" AS in_data USING (trans_id_in, id);
 
 ROLLBACK;

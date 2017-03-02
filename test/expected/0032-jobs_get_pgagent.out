@@ -1,5 +1,6 @@
 BEGIN;
 CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 CREATE SCHEMA user_data AUTHORIZATION postgres;
 CREATE TABLE user_data.test_table (
@@ -92,9 +93,9 @@ SELECT sys_syn.jobs_get_pgagent();
          jstcode,                                                                                                                    +
          jstconnstr,     jstdbname,      jstonerror)                                                                                 +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Pull Sequence in'),                             +
-         '5-move 00001-test_table 00001-out',                                                                                        +
+         '5-move 00001-test_table 00002-out',                                                                                        +
          '',             true,           's',                                                                                        +
-         'SELECT user_data.test_table_out_move()',                                                                                   +
+         'SELECT user_data.test_table_out_move_1()',                                                                                 +
          '',             'contrib_regression',      'f');                                                                            +
                                                                                                                                      +
  INSERT INTO pgagent.pga_job (                                                                                                       +
@@ -137,9 +138,9 @@ SELECT sys_syn.jobs_get_pgagent();
          jstcode,                                                                                                                    +
          jstconnstr,     jstdbname,      jstonerror)                                                                                 +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Processed Sequence in'),                        +
-         '2-processed 00001-test_table 00001-test_table 00001-out',                                                                  +
+         '2-processed 00001-test_table 00001-test_table 00002-out',                                                                  +
          '',             true,           's',                                                                                        +
-         'SELECT user_data.test_table_out_processed()',                                                                              +
+         'SELECT user_data.test_table_out_processed_1()',                                                                            +
          '',             'contrib_regression',      'f');                                                                            +
                                                                                                                                      +
  COMMIT;

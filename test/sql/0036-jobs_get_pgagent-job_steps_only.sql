@@ -1,6 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data AUTHORIZATION postgres;

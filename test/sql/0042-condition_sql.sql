@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -29,12 +28,12 @@ INSERT INTO sys_syn.out_groups_def VALUES ('out');
 SELECT sys_syn.out_table_create('user_data', 'test_table', 'out', condition_sql => $$(attributes).test_table_text LIKE 'test_%'$$);
 
 SELECT user_data.test_table_pull(FALSE);
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue_1;
 
-SELECT user_data.test_table_vacuum();
+SELECT user_data.test_table_vacuum_1();
 
-SELECT * FROM user_data.test_table_in;
+SELECT * FROM user_data.test_table_in_1;
 
 ROLLBACK;

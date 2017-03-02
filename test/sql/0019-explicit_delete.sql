@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -58,9 +57,9 @@ SELECT  (in_data.id).*,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
-FROM    user_data.test_table_in AS in_data;
+FROM    user_data.test_table_in_1 AS in_data;
 
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
 SELECT  out_queue.id,
         out_queue.delta_type,
@@ -70,12 +69,12 @@ SELECT  out_queue.id,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
-FROM    user_data.test_table_out_queue AS out_queue
-        LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, id);
+FROM    user_data.test_table_out_queue_1 AS out_queue
+        LEFT JOIN user_data.test_table_in_1 AS in_data USING (trans_id_in, id);
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id IN (1, 2);
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id IN (1, 2);
-SELECT user_data.test_table_out_processed();
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id IN (1, 2);
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id IN (1, 2);
+SELECT user_data.test_table_out_processed_1();
 
 SELECT  out_baseline.id,
         (in_data.id).*,
@@ -83,8 +82,8 @@ SELECT  out_baseline.id,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
-FROM    user_data.test_table_out_baseline AS out_baseline
-        LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, id);
+FROM    user_data.test_table_out_baseline_1 AS out_baseline
+        LEFT JOIN user_data.test_table_in_1 AS in_data USING (trans_id_in, id);
 
 UPDATE user_data.test_table SET no_diff_text = 'changed, no diff' WHERE test_table_id = 1;
 UPDATE user_data.test_table SET delete_row_indicator = TRUE WHERE test_table_id = 2;
@@ -97,10 +96,10 @@ SELECT  (in_data.id).*,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
-FROM    user_data.test_table_in AS in_data;
+FROM    user_data.test_table_in_1 AS in_data;
 
 
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
 SELECT  out_queue.id,
         out_queue.delta_type,
@@ -110,12 +109,12 @@ SELECT  out_queue.id,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
-FROM    user_data.test_table_out_queue AS out_queue
-        LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, id);
+FROM    user_data.test_table_out_queue_1 AS out_queue
+        LEFT JOIN user_data.test_table_in_1 AS in_data USING (trans_id_in, id);
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 2;
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 2;
-SELECT user_data.test_table_out_processed();
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 2;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 2;
+SELECT user_data.test_table_out_processed_1();
 
 SELECT  out_baseline.id,
         (in_data.id).*,
@@ -123,7 +122,7 @@ SELECT  out_baseline.id,
         (in_data.attributes).*,
         '<Attr   NoD>' AS attr_nod,
         (in_data.no_diff).*
-FROM    user_data.test_table_out_baseline AS out_baseline
-        LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, id);
+FROM    user_data.test_table_out_baseline_1 AS out_baseline
+        LEFT JOIN user_data.test_table_in_1 AS in_data USING (trans_id_in, id);
 
 ROLLBACK;

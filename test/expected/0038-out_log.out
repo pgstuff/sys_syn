@@ -1,6 +1,6 @@
 BEGIN;
-CREATE EXTENSION tinyint
-    SCHEMA public;
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
@@ -10,28 +10,30 @@ CREATE TABLE user_data.test_table (
         CONSTRAINT test_table_pid PRIMARY KEY (test_table_id));
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
-                                          in_table_create_sql                                          
--------------------------------------------------------------------------------------------------------
- SELECT sys_syn.in_table_create(                                                                      +
-                 schema          => 'user_data'::regnamespace,                                        +
-                 in_table_id     => 'test_table',                                                     +
-                 in_group_id     => 'in',                                                             +
-                 in_pull_id      => NULL,                                                             +
-                 in_columns      => ARRAY[                                                            +
-                        $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,       +
-                        $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$+
-                 ]::sys_syn.create_in_column[],                                                       +
-                 full_table_reference    => 'user_data.test_table',                                   +
-                 changes_table_reference => NULL,                                                     +
-                 full_sql                => NULL,                                                     +
-                 changes_sql             => NULL,                                                     +
-                 full_pre_sql            => NULL,                                                     +
-                 changes_pre_sql         => NULL,                                                     +
-                 full_post_sql           => NULL,                                                     +
-                 changes_post_sql        => NULL,                                                     +
-                 enable_deletes_implied  => TRUE,                                                     +
-                 full_prepull_id         => NULL,                                                     +
-                 changes_prepull_id      => NULL                                                      +
+                                          in_table_create_sql                                           
+--------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.in_table_create(                                                                      +
+                 schema          => 'user_data'::regnamespace,                                         +
+                 in_table_id     => 'test_table',                                                      +
+                 in_group_id     => 'in',                                                              +
+                 in_pull_id      => NULL,                                                              +
+                 in_columns      => ARRAY[                                                             +
+                        $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,,)$COL$,       +
+                        $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,,)$COL$+
+                 ]::sys_syn.create_in_column[],                                                        +
+                 full_table_reference    => 'user_data.test_table',                                    +
+                 changes_table_reference => NULL,                                                      +
+                 full_sql                => NULL,                                                      +
+                 changes_sql             => NULL,                                                      +
+                 full_pre_sql            => NULL,                                                      +
+                 changes_pre_sql         => NULL,                                                      +
+                 full_post_sql           => NULL,                                                      +
+                 changes_post_sql        => NULL,                                                      +
+                 enable_deletes_implied  => TRUE,                                                      +
+                 full_prepull_id         => NULL,                                                      +
+                 changes_prepull_id      => NULL,                                                      +
+                 in_partitions           => ARRAY[                                                     +
+                         $PART$("",)$PART$]::sys_syn.create_in_partition[]                             +
          );
 (1 row)
 
@@ -54,17 +56,17 @@ SELECT user_data.test_table_pull(FALSE);
  t
 (1 row)
 
-SELECT user_data.test_table_out_move();
- test_table_out_move 
----------------------
+SELECT user_data.test_table_out_move_1();
+ test_table_out_move_1 
+-----------------------
  t
 (1 row)
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-SELECT user_data.test_table_out_processed();
- test_table_out_processed 
---------------------------
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+SELECT user_data.test_table_out_processed_1();
+ test_table_out_processed_1 
+----------------------------
  t
 (1 row)
 
@@ -76,42 +78,42 @@ SELECT user_data.test_table_pull(FALSE);
  t
 (1 row)
 
-SELECT user_data.test_table_out_move();
- test_table_out_move 
----------------------
+SELECT user_data.test_table_out_move_1();
+ test_table_out_move_1 
+-----------------------
  t
 (1 row)
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
-SELECT user_data.test_table_out_processed();
- test_table_out_processed 
---------------------------
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+SELECT user_data.test_table_out_processed_1();
+ test_table_out_processed_1 
+----------------------------
  t
 (1 row)
 
 SELECT  out_baseline.id,
         (in_data.id).*,
         (in_data.attributes).*
-FROM    user_data.test_table_out_baseline out_baseline
-        LEFT JOIN user_data.test_table_in AS in_data USING (trans_id_in, id);
+FROM    user_data.test_table_out_baseline_1 out_baseline
+        LEFT JOIN user_data.test_table_in_1 AS in_data USING (trans_id_in, id);
  id  | test_table_id | test_table_text 
 -----+---------------+-----------------
  (1) |             1 | test_data v2
 (1 row)
 
-SELECT  test_table_out_log.trans_id_in,
-        test_table_out_log.id,
-        test_table_out_log.trans_id_out,
+SELECT  out_log.trans_id_in,
+        out_log.id,
+        out_log.trans_id_out,
         CASE
-                WHEN test_table_out_log.processed_time IS NULL
+                WHEN out_log.processed_time IS NULL
                         THEN 'NULL'
                 ELSE 'NOT NULL'
         END AS processed_time_test,
-        test_table_out_log.delta_type,
-        test_table_out_log.queue_id
-FROM    user_data.test_table_out_log
-ORDER BY test_table_out_log.trans_id_out;
+        out_log.delta_type,
+        out_log.queue_id
+FROM    user_data.test_table_out_log_1 AS out_log
+ORDER BY out_log.trans_id_out;
  trans_id_in | id  | trans_id_out | processed_time_test | delta_type | queue_id 
 -------------+-----+--------------+---------------------+------------+----------
            1 | (1) |            1 | NOT NULL            | Add        |         

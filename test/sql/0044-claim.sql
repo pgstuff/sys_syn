@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -34,18 +33,18 @@ SELECT sys_syn.out_table_create(
         claim_queue_count       => 1::smallint,
         queue_pid_used_age      => '1.1 hours'::INTERVAL);
 
-ALTER TABLE user_data.test_table_out_queue
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE user_data.test_table_out_queue_1
+  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in_1 (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 SELECT user_data.test_table_pull(FALSE);
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue_1;
 
-SELECT * FROM user_data.test_table_out_queue_pid_health();
+SELECT * FROM user_data.test_table_out_queue_pid_health_1();
 
-SELECT user_data.test_table_out_claim(user_data.test_table_out_queue_id_claim());
+SELECT user_data.test_table_out_claim_1(user_data.test_table_out_queue_id_claim_1());
 
-SELECT * FROM user_data.test_table_out_queue_pid_health();
+SELECT * FROM user_data.test_table_out_queue_pid_health_1();
 
 ROLLBACK;

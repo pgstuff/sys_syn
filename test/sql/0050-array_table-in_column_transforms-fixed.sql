@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 INSERT INTO sys_syn.in_column_transforms(
@@ -30,9 +29,9 @@ SELECT sys_syn.in_table_create (
                 'in',
                 NULL,
                 ARRAY[
-                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
-                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,)$COL$,
-                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
+                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,,)$COL$,
+                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,,)$COL$,
+                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,,)$COL$
                 ]::sys_syn.create_in_column[],
                 'user_data.test_table',
                 NULL
@@ -49,8 +48,8 @@ SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
 SELECT user_data.test_table_pull(FALSE);
 
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue_1;
 
 ROLLBACK;

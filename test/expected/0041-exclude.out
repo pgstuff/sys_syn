@@ -1,6 +1,6 @@
 BEGIN;
-CREATE EXTENSION tinyint
-    SCHEMA public;
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
@@ -17,7 +17,7 @@ INSERT INTO user_data.test_table(
 VALUES (1,              'Exclude from in'),
        (2,              'Exclude from out'),
        (3,              'test_data');
-INSERT INTO user_data.test_table_exclude VALUES (ROW(1));
+INSERT INTO user_data.test_table_exclude_1 VALUES (ROW(1));
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
  out_table_create 
@@ -25,32 +25,32 @@ SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
  
 (1 row)
 
-INSERT INTO user_data.test_table_out_exclude VALUES (ROW(2));
+INSERT INTO user_data.test_table_out_exclude_1 VALUES (ROW(2));
 SELECT user_data.test_table_pull(FALSE);
  test_table_pull 
 -----------------
  t
 (1 row)
 
-SELECT user_data.test_table_out_move();
- test_table_out_move 
----------------------
+SELECT user_data.test_table_out_move_1();
+ test_table_out_move_1 
+-----------------------
  t
 (1 row)
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue_1;
  id  | delta_type | queue_state 
 -----+------------+-------------
  (3) | Add        | Unclaimed
 (1 row)
 
-SELECT user_data.test_table_vacuum();
- test_table_vacuum 
--------------------
+SELECT user_data.test_table_vacuum_1();
+ test_table_vacuum_1 
+---------------------
  
 (1 row)
 
-SELECT * FROM user_data.test_table_in;
+SELECT * FROM user_data.test_table_in_1;
  trans_id_in | id  | attributes  | no_diff 
 -------------+-----+-------------+---------
            1 | (3) | (test_data) | 

@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -30,8 +29,8 @@ INSERT INTO sys_syn.out_groups_def VALUES ('out');
 SELECT sys_syn.out_table_create('user_data', 'test_table', 'out', data_view => TRUE);
 
 SELECT user_data.test_table_pull(FALSE);
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT * FROM user_data.test_table_out_queue_data;
+SELECT * FROM user_data.test_table_out_queue_data_1;
 
 ROLLBACK;

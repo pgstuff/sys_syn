@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -25,21 +24,21 @@ VALUES (1,              'Exclude from in'),
        (2,              'Exclude from out'),
        (3,              'test_data');
 
-INSERT INTO user_data.test_table_exclude VALUES (ROW(1));
+INSERT INTO user_data.test_table_exclude_1 VALUES (ROW(1));
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
 SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
-INSERT INTO user_data.test_table_out_exclude VALUES (ROW(2));
+INSERT INTO user_data.test_table_out_exclude_1 VALUES (ROW(2));
 
 SELECT user_data.test_table_pull(FALSE);
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue_1;
 
-SELECT user_data.test_table_vacuum();
+SELECT user_data.test_table_vacuum_1();
 
-SELECT * FROM user_data.test_table_in;
+SELECT * FROM user_data.test_table_in_1;
 
 ROLLBACK;

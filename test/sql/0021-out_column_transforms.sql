@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -70,20 +69,20 @@ VALUES ('out',          ARRAY['time_zone_us_eastern','sys_syn-mssql']);
 SELECT sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_columns => ARRAY['sys_syn_hold_reason_text'], data_view => TRUE);
 
 DO $$BEGIN
-    EXECUTE sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_columns => ARRAY['sys_syn_hold_reason_text'], data_view => TRUE);
+        EXECUTE sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_columns => ARRAY['sys_syn_hold_reason_text'], data_view => TRUE);
 END$$;
 
 SELECT user_data.test_table_pull(FALSE);
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT * FROM user_data.test_table_out_queue_data;
+SELECT * FROM user_data.test_table_out_queue_data_1;
 
-UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Claimed'::sys_syn.queue_state WHERE test_table_id = 1;
+UPDATE user_data.test_table_out_queue_data_1 SET sys_syn_queue_state = 'Claimed'::sys_syn.queue_state WHERE test_table_id = 1;
 
-UPDATE user_data.test_table_out_queue_data SET sys_syn_queue_state = 'Processed'::sys_syn.queue_state WHERE test_table_id = 1;
+UPDATE user_data.test_table_out_queue_data_1 SET sys_syn_queue_state = 'Processed'::sys_syn.queue_state WHERE test_table_id = 1;
 
-SELECT user_data.test_table_out_processed();
+SELECT user_data.test_table_out_processed_1();
 
-SELECT * FROM user_data.test_table_out_queue_data;
+SELECT * FROM user_data.test_table_out_queue_data_1;
 
 ROLLBACK;

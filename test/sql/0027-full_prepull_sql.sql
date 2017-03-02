@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -15,10 +14,10 @@ CREATE TABLE user_data.test_table (
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
-SELECT sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
+SELECT sys_syn.prepull_create_sql('user_data.test_table'::regclass, 'in');
 
 DO $$BEGIN
-    EXECUTE sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
+    EXECUTE sys_syn.prepull_create_sql('user_data.test_table'::regclass, 'in');
 END$$;
 
 ROLLBACK;

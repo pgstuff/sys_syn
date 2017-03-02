@@ -2,4 +2,4 @@
 comment = 'System Synchronization'
 default_version = '0.0.1'
 relocatable = false
-requires = plpgsql
+requires = 'plpgsql, pgcrypto'

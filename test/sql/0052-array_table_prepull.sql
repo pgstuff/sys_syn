@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -17,7 +16,7 @@ CREATE TABLE user_data.test_table (
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
 DO $$BEGIN
-        EXECUTE sys_syn.pre_pull_add_sql('user_data.test_table'::regclass, 'in');
+        EXECUTE sys_syn.prepull_create_sql('user_data.test_table'::regclass, 'in');
 END$$;
 
 SELECT sys_syn.in_table_create (
@@ -26,10 +25,10 @@ SELECT sys_syn.in_table_create (
                 in_group_id     => 'in',
                 in_pull_id      => NULL,
                 in_columns      => ARRAY[
-                       $COL$("trans_id_in","sys_syn.trans_id",TransIdIn,"in_source.trans_id_in",,,,)$COL$,
-                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,)$COL$,
-                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,)$COL$,
-                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,)$COL$
+                       $COL$("trans_id_in","sys_syn.trans_id",TransIdIn,"in_source.trans_id_in",,,,,)$COL$,
+                       $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,,)$COL$,
+                       $COL$("test_table_updated","timestamp with time zone",Attribute,"in_source.test_table_updated",1,,,,)$COL$,
+                       $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,,)$COL$
                 ]::sys_syn.create_in_column[],
                 full_table_reference    => 'user_data.test_table_prepull_full',
                 changes_table_reference => NULL,
@@ -42,8 +41,8 @@ INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
 SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
-ALTER TABLE user_data.test_table_out_queue
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE user_data.test_table_out_queue_1
+  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_in_1 (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 INSERT INTO user_data.test_table(
         test_table_id, test_table_updated,             test_table_text)
@@ -56,16 +55,16 @@ UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_sy
 
 SELECT user_data.test_table_pull(FALSE);
 
-SELECT user_data.test_table_out_move();
+SELECT user_data.test_table_out_move_1();
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue_1;
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
 
-UPDATE user_data.test_table_out_queue SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
+UPDATE user_data.test_table_out_queue_1 SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id).test_table_id = 1;
 
-SELECT user_data.test_table_out_processed();
+SELECT user_data.test_table_out_processed_1();
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_out_queue_1;
 
 ROLLBACK;

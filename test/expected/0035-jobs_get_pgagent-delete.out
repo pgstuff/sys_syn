@@ -1,5 +1,6 @@
 BEGIN;
 CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 CREATE SCHEMA user_data AUTHORIZATION postgres;
 CREATE TABLE user_data.in_1_test_table (
@@ -141,9 +142,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Pull Sequence in_1'),                             +
-         '5-move 00001-in_1_test_table 00001-out_1',                                                                                   +
+         '5-move 00001-in_1_test_table 00003-out_1',                                                                                   +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_1_test_table_out_1_move()',                                                                              +
+         'SELECT user_data.in_1_test_table_out_1_move_1()',                                                                            +
          '',             'contrib_regression',      'f');;                                                                             +
                                                                                                                                        +
  INSERT INTO pgagent.pga_jobstep (                                                                                                     +
@@ -153,9 +154,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Pull Sequence in_1'),                             +
-         '5-move 00001-in_1_test_table 00003-out_2',                                                                                   +
+         '5-move 00001-in_1_test_table 00005-out_2',                                                                                   +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_1_test_table_out_2_move()',                                                                              +
+         'SELECT user_data.in_1_test_table_out_2_move_1()',                                                                            +
          '',             'contrib_regression',      'f');                                                                              +
                                                                                                                                        +
  INSERT INTO pgagent.pga_job (                                                                                                         +
@@ -198,9 +199,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Processed Sequence in_1'),                        +
-         '2-processed 00001-in_1_test_table 00001-in_1_test_table 00001-out_1',                                                        +
+         '2-processed 00001-in_1_test_table 00001-in_1_test_table 00003-out_1',                                                        +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_1_test_table_out_1_processed()',                                                                         +
+         'SELECT user_data.in_1_test_table_out_1_processed_1()',                                                                       +
          '',             'contrib_regression',      'f');;                                                                             +
                                                                                                                                        +
  INSERT INTO pgagent.pga_jobstep (                                                                                                     +
@@ -210,9 +211,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Processed Sequence in_1'),                        +
-         '2-processed 00001-in_1_test_table 00001-in_1_test_table 00003-out_2',                                                        +
+         '2-processed 00001-in_1_test_table 00001-in_1_test_table 00005-out_2',                                                        +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_1_test_table_out_2_processed()',                                                                         +
+         'SELECT user_data.in_1_test_table_out_2_processed_1()',                                                                       +
          '',             'contrib_regression',      'f');                                                                              +
                                                                                                                                        +
  COMMIT;                                                                                                                               +
@@ -304,9 +305,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Pull Sequence in_2'),                             +
-         '5-move 00002-in_2_test_table 00002-out_1',                                                                                   +
+         '5-move 00002-in_2_test_table 00004-out_1',                                                                                   +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_2_test_table_out_1_move()',                                                                              +
+         'SELECT user_data.in_2_test_table_out_1_move_1()',                                                                            +
          '',             'contrib_regression',      'f');;                                                                             +
                                                                                                                                        +
  INSERT INTO pgagent.pga_jobstep (                                                                                                     +
@@ -316,9 +317,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Pull Sequence in_2'),                             +
-         '5-move 00002-in_2_test_table 00004-out_2',                                                                                   +
+         '5-move 00002-in_2_test_table 00006-out_2',                                                                                   +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_2_test_table_out_2_move()',                                                                              +
+         'SELECT user_data.in_2_test_table_out_2_move_1()',                                                                            +
          '',             'contrib_regression',      'f');                                                                              +
                                                                                                                                        +
  INSERT INTO pgagent.pga_job (                                                                                                         +
@@ -361,9 +362,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Processed Sequence in_2'),                        +
-         '2-processed 00002-in_2_test_table 00001-in_2_test_table 00002-out_1',                                                        +
+         '2-processed 00002-in_2_test_table 00001-in_2_test_table 00004-out_1',                                                        +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_2_test_table_out_1_processed()',                                                                         +
+         'SELECT user_data.in_2_test_table_out_1_processed_1()',                                                                       +
          '',             'contrib_regression',      'f');;                                                                             +
                                                                                                                                        +
  INSERT INTO pgagent.pga_jobstep (                                                                                                     +
@@ -373,9 +374,9 @@ SELECT sys_syn.jobs_get_pgagent(delete_sql => true, create_sql => true);
          jstcode,                                                                                                                      +
          jstconnstr,     jstdbname,      jstonerror)                                                                                   +
  VALUES ((SELECT pga_job.jobid FROM pgagent.pga_job WHERE pga_job.jobname = 'sys_syn Processed Sequence in_2'),                        +
-         '2-processed 00002-in_2_test_table 00001-in_2_test_table 00004-out_2',                                                        +
+         '2-processed 00002-in_2_test_table 00001-in_2_test_table 00006-out_2',                                                        +
          '',             true,           's',                                                                                          +
-         'SELECT user_data.in_2_test_table_out_2_processed()',                                                                         +
+         'SELECT user_data.in_2_test_table_out_2_processed_1()',                                                                       +
          '',             'contrib_regression',      'f');                                                                              +
                                                                                                                                        +
  COMMIT;

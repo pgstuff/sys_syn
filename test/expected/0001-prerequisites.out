@@ -7,5 +7,7 @@ DO $$BEGIN
         END IF;
 END$$;
 CREATE EXTENSION tinyint
-    SCHEMA public;
+        SCHEMA public;
+CREATE EXTENSION pgcrypto
+        SCHEMA public;
 ROLLBACK;

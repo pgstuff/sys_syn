@@ -1,6 +1,6 @@
 BEGIN;
-CREATE EXTENSION tinyint
-    SCHEMA public;
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 CREATE SCHEMA "User Data"
     AUTHORIZATION postgres;
@@ -10,28 +10,30 @@ CREATE TABLE "User Data"."Test Table" (
         CONSTRAINT "Test Table_pid" PRIMARY KEY ("Test Table Id"));
 INSERT INTO sys_syn.in_groups_def VALUES ('In Group');
 SELECT sys_syn.in_table_create_sql('"User Data"."Test Table"'::regclass, 'In Group');
-                                            in_table_create_sql                                            
------------------------------------------------------------------------------------------------------------
- SELECT sys_syn.in_table_create(                                                                          +
-                 schema          => '"User Data"'::regnamespace,                                          +
-                 in_table_id     => 'Test Table',                                                         +
-                 in_group_id     => 'In Group',                                                           +
-                 in_pull_id      => NULL,                                                                 +
-                 in_columns      => ARRAY[                                                                +
-                        $COL$("Test Table Id","integer",Id,"in_source.\"Test Table Id\"",,,,)$COL$,       +
-                        $COL$("Test Table Text","text",Attribute,"in_source.\"Test Table Text\"",,,,)$COL$+
-                 ]::sys_syn.create_in_column[],                                                           +
-                 full_table_reference    => '"User Data"."Test Table"',                                   +
-                 changes_table_reference => NULL,                                                         +
-                 full_sql                => NULL,                                                         +
-                 changes_sql             => NULL,                                                         +
-                 full_pre_sql            => NULL,                                                         +
-                 changes_pre_sql         => NULL,                                                         +
-                 full_post_sql           => NULL,                                                         +
-                 changes_post_sql        => NULL,                                                         +
-                 enable_deletes_implied  => TRUE,                                                         +
-                 full_prepull_id         => NULL,                                                         +
-                 changes_prepull_id      => NULL                                                          +
+                                            in_table_create_sql                                             
+------------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.in_table_create(                                                                          +
+                 schema          => '"User Data"'::regnamespace,                                           +
+                 in_table_id     => 'Test Table',                                                          +
+                 in_group_id     => 'In Group',                                                            +
+                 in_pull_id      => NULL,                                                                  +
+                 in_columns      => ARRAY[                                                                 +
+                        $COL$("Test Table Id","integer",Id,"in_source.\"Test Table Id\"",,,,,)$COL$,       +
+                        $COL$("Test Table Text","text",Attribute,"in_source.\"Test Table Text\"",,,,,)$COL$+
+                 ]::sys_syn.create_in_column[],                                                            +
+                 full_table_reference    => '"User Data"."Test Table"',                                    +
+                 changes_table_reference => NULL,                                                          +
+                 full_sql                => NULL,                                                          +
+                 changes_sql             => NULL,                                                          +
+                 full_pre_sql            => NULL,                                                          +
+                 changes_pre_sql         => NULL,                                                          +
+                 full_post_sql           => NULL,                                                          +
+                 changes_post_sql        => NULL,                                                          +
+                 enable_deletes_implied  => TRUE,                                                          +
+                 full_prepull_id         => NULL,                                                          +
+                 changes_prepull_id      => NULL,                                                          +
+                 in_partitions           => ARRAY[                                                         +
+                         $PART$("",)$PART$]::sys_syn.create_in_partition[]                                 +
          );
 (1 row)
 
@@ -43,43 +45,44 @@ INSERT INTO "User Data"."Test Table"(
 VALUES (1,              'test_data v1');
 INSERT INTO sys_syn.out_groups_def VALUES ('Out Group');
 SELECT sys_syn.out_table_create_sql('"User Data"'::regnamespace, 'Test Table', 'Out Group');
-                                                            out_table_create_sql                                                             
----------------------------------------------------------------------------------------------------------------------------------------------
- SELECT sys_syn.out_table_create (                                                                                                          +
-                 schema                  => '"User Data"'::regnamespace,                                                                    +
-                 in_table_id             => 'Test Table',                                                                                   +
-                 out_group_id            => 'Out Group',                                                                                    +
-                 out_columns             => ARRAY[                                                                                          +
-                        $COL$("sys_syn_trans_id_in","out_queue.trans_id_in",,)$COL$,                                                        +
-                        $COL$("sys_syn_delta_type","out_queue.delta_type",,)$COL$,                                                          +
-                        $COL$("sys_syn_queue_state","out_queue.queue_state",queue_state,"new.sys_syn_queue_state")$COL$,                    +
-                        $COL$("sys_syn_queue_id","out_queue.queue_id",queue_id,"new.sys_syn_queue_id")$COL$,                                +
-                        $COL$("sys_syn_queue_priority","out_queue.queue_priority",queue_priority,"new.sys_syn_queue_priority")$COL$,        +
-                        $COL$("sys_syn_hold_updated","out_queue.hold_updated",,)$COL$,                                                      +
-                        $COL$("sys_syn_hold_trans_id_first","out_queue.hold_trans_id_first",,)$COL$,                                        +
-                        $COL$("sys_syn_hold_trans_id_last","out_queue.hold_trans_id_last",,)$COL$,                                          +
-                        $COL$("sys_syn_hold_reason_count","out_queue.hold_reason_count",,)$COL$,                                            +
-                        $COL$("sys_syn_hold_reason_id","out_queue.hold_reason_id",hold_reason_id,"new.sys_syn_hold_reason_id")$COL$,        +
-                        $COL$("sys_syn_hold_reason_text","out_queue.hold_reason_text",hold_reason_text,"new.sys_syn_hold_reason_text")$COL$,+
-                        $COL$("sys_syn_trans_id_out","out_queue.trans_id_out",,)$COL$,                                                      +
-                        $COL$("sys_syn_processed_time","out_queue.processed_time",processed_time,"new.sys_syn_processed_time")$COL$,        +
-                        $COL$("Test Table Id","(in_source.id).\"Test Table Id\"",,)$COL$,                                                   +
-                        $COL$("Test Table Text","(in_source.attributes).\"Test Table Text\"",,)$COL$                                        +
-                 ]::sys_syn.create_out_column[],                                                                                            +
-                 data_view               => 'false',                                                                                        +
-                 out_log_lifetime        => NULL,                                                                                           +
-                 notification_channel    => NULL,                                                                                           +
-                 enable_adds             => 'true',                                                                                         +
-                 enable_changes          => 'true',                                                                                         +
-                 enable_deletes          => 'true',                                                                                         +
-                 condition_sql           => NULL,                                                                                           +
-                 claim_limit_rows        => '2147483647',                                                                                   +
-                 claim_queue_count       => NULL,                                                                                           +
-                 claim_fixed_by_id       => 'false',                                                                                        +
-                 claim_random_sample     => NULL,                                                                                           +
-                 queue_pid_used_age      => NULL,                                                                                           +
-                 record_comparison_different=> NULL,                                                                                        +
-                 record_comparison_same     => NULL                                                                                         +
+                                                             out_table_create_sql                                                             
+----------------------------------------------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.out_table_create (                                                                                                          +
+                 schema                  => '"User Data"'::regnamespace,                                                                     +
+                 in_table_id             => 'Test Table',                                                                                    +
+                 out_group_id            => 'Out Group',                                                                                     +
+                 out_columns             => ARRAY[                                                                                           +
+                        $COL$("sys_syn_trans_id_in","out_queue.trans_id_in",,,)$COL$,                                                        +
+                        $COL$("sys_syn_delta_type","out_queue.delta_type",,,)$COL$,                                                          +
+                        $COL$("sys_syn_queue_state","out_queue.queue_state",queue_state,"new.sys_syn_queue_state",)$COL$,                    +
+                        $COL$("sys_syn_queue_id","out_queue.queue_id",queue_id,"new.sys_syn_queue_id",)$COL$,                                +
+                        $COL$("sys_syn_queue_priority","out_queue.queue_priority",queue_priority,"new.sys_syn_queue_priority",)$COL$,        +
+                        $COL$("sys_syn_hold_updated","out_queue.hold_updated",,,)$COL$,                                                      +
+                        $COL$("sys_syn_hold_trans_id_first","out_queue.hold_trans_id_first",,,)$COL$,                                        +
+                        $COL$("sys_syn_hold_trans_id_last","out_queue.hold_trans_id_last",,,)$COL$,                                          +
+                        $COL$("sys_syn_hold_reason_count","out_queue.hold_reason_count",,,)$COL$,                                            +
+                        $COL$("sys_syn_hold_reason_id","out_queue.hold_reason_id",hold_reason_id,"new.sys_syn_hold_reason_id",)$COL$,        +
+                        $COL$("sys_syn_hold_reason_text","out_queue.hold_reason_text",hold_reason_text,"new.sys_syn_hold_reason_text",)$COL$,+
+                        $COL$("sys_syn_trans_id_out","out_queue.trans_id_out",,,)$COL$,                                                      +
+                        $COL$("sys_syn_processed_time","out_queue.processed_time",processed_time,"new.sys_syn_processed_time",)$COL$,        +
+                        $COL$("Test Table Id","(out_queue.id).\"Test Table Id\"",,,Id)$COL$,                                                 +
+                        $COL$("Test Table Text","(in_source.attributes).\"Test Table Text\"",,,Attribute)$COL$                               +
+                 ]::sys_syn.create_out_column[],                                                                                             +
+                 data_view               => 'false',                                                                                         +
+                 out_log_lifetime        => NULL,                                                                                            +
+                 out_partitions          => ARRAY[                                                                                           +
+                        $PART$()$PART$]::sys_syn.create_out_partition[],                                                                     +
+                 enable_adds             => 'true',                                                                                          +
+                 enable_changes          => 'true',                                                                                          +
+                 enable_deletes          => 'true',                                                                                          +
+                 condition_sql           => NULL,                                                                                            +
+                 claim_limit_rows        => '2147483647',                                                                                    +
+                 claim_queue_count       => NULL,                                                                                            +
+                 claim_fixed_by_id       => 'false',                                                                                         +
+                 claim_random_sample     => NULL,                                                                                            +
+                 queue_pid_used_age      => NULL,                                                                                            +
+                 record_comparison_different=> NULL,                                                                                         +
+                 record_comparison_same     => NULL                                                                                          +
          );
 (1 row)
 
@@ -92,25 +95,25 @@ SELECT "User Data"."Test Table_pull"(FALSE);
  t
 (1 row)
 
-SELECT "User Data"."Test Table_Out Group_move"();
- Test Table_Out Group_move 
----------------------------
+SELECT "User Data"."Test Table_Out Group_move_1"();
+ Test Table_Out Group_move_1 
+-----------------------------
  t
 (1 row)
 
-UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
-UPDATE "User Data"."Test Table_Out Group_queue" SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
-SELECT "User Data"."Test Table_Out Group_processed"();
- Test Table_Out Group_processed 
---------------------------------
+UPDATE "User Data"."Test Table_Out Group_queue_1" SET queue_state = 'Claimed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
+UPDATE "User Data"."Test Table_Out Group_queue_1" SET queue_state = 'Processed'::sys_syn.queue_state WHERE (id)."Test Table Id" = 1;
+SELECT "User Data"."Test Table_Out Group_processed_1"();
+ Test Table_Out Group_processed_1 
+----------------------------------
  t
 (1 row)
 
 SELECT  out_baseline.id,
         (in_data.id).*,
         (in_data.attributes).*
-FROM    "User Data"."Test Table_Out Group_baseline" out_baseline
-        LEFT JOIN "User Data"."Test Table_in" AS in_data USING (trans_id_in, id);
+FROM    "User Data"."Test Table_Out Group_baseline_1" out_baseline
+        LEFT JOIN "User Data"."Test Table_in_1" AS in_data USING (trans_id_in, id);
  id  | Test Table Id | Test Table Text 
 -----+---------------+-----------------
  (1) |             1 | test_data v1

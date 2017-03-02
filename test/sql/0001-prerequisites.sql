@@ -9,6 +9,9 @@ DO $$BEGIN
 END$$;
 
 CREATE EXTENSION tinyint
-    SCHEMA public;
+        SCHEMA public;
+
+CREATE EXTENSION pgcrypto
+        SCHEMA public;
 
 ROLLBACK;

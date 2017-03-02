@@ -1,8 +1,7 @@
 BEGIN;
 
-CREATE EXTENSION tinyint
-    SCHEMA public;
-
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -30,7 +29,7 @@ OPTIONS (schema_name 'user_data_fdw_source', table_name 'test_table_fdw_source')
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 
 DO $$BEGIN
-        EXECUTE sys_syn.pre_pull_add_sql('user_data.test_table_fdw'::regclass, 'in', id_columns => ARRAY['test_table_id']);
+        EXECUTE sys_syn.prepull_create_sql('user_data.test_table_fdw'::regclass, 'in', id_columns => ARRAY['test_table_id']);
 END$$;
 
 DO $$BEGIN
@@ -51,14 +50,14 @@ INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
 SELECT sys_syn.out_table_create('user_data', 'test_table_fdw', 'out');
 
-ALTER TABLE user_data.test_table_fdw_out_queue
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_fdw_in (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE user_data.test_table_fdw_out_queue_1
+  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.test_table_fdw_in_1 (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 SELECT user_data.test_table_fdw_prepull_full();
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.test_table_fdw_pull(FALSE);
-SELECT user_data.test_table_fdw_out_move();
+SELECT user_data.test_table_fdw_out_move_1();
 
-SELECT id, delta_type, queue_state FROM user_data.test_table_fdw_out_queue;
+SELECT id, delta_type, queue_state FROM user_data.test_table_fdw_out_queue_1;
 
 ROLLBACK;
