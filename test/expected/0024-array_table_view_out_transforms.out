@@ -1,6 +1,5 @@
 BEGIN;
 CREATE EXTENSION tinyint SCHEMA public;
-CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
@@ -98,7 +97,7 @@ SELECT sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_colum
                  enable_changes          => 'true',                                                                                                                                                                                                                             +
                  enable_deletes          => 'true',                                                                                                                                                                                                                             +
                  condition_sql           => NULL,                                                                                                                                                                                                                               +
-                 claim_limit_rows        => '2147483647',                                                                                                                                                                                                                       +
+                 records_per_claim       => '150000',                                                                                                                                                                                                                           +
                  claim_queue_count       => NULL,                                                                                                                                                                                                                               +
                  claim_fixed_by_id       => 'false',                                                                                                                                                                                                                            +
                  claim_random_sample     => NULL,                                                                                                                                                                                                                               +

@@ -3,6 +3,14 @@ BEGIN;
 CREATE EXTENSION tinyint SCHEMA public;
 CREATE EXTENSION sys_syn;
 
+INSERT INTO sys_syn.foreign_keys_for_c_sql (
+        database_path,                                  foreign_key_id,
+        foreign_in_table_id,                            primary_in_table_id,
+        foreign_column_name,                            primary_column_name)
+VALUES ('server_name/service_instance/database_name',   'test_fkey',
+        'child_table',                                  'parent_table',
+        'parent_table_id',                              'parent_table_id');
+
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
@@ -24,17 +32,11 @@ DO $$BEGIN
         EXECUTE sys_syn.in_table_create_sql('user_data.parent_table'::regclass, 'in');
 END$$;
 
-SELECT sys_syn.in_table_create (
-                schema          => 'user_data',
-                in_table_id     => 'child_table',
-                in_group_id     => 'in',
-                in_pull_id      => NULL,
-                in_columns      => ARRAY[
-                       $COL$("child_table_id","integer",Id,"in_source.child_table_id",,,,,)$COL$,
-                       $COL$("parent_table_id","integer",Attribute,"in_source.parent_table_id",,1,"parent_table","parent_table_id",)$COL$
-                ]::sys_syn.create_in_column[],
-                full_table_reference    => 'user_data.child_table'
-        );
+SELECT sys_syn.in_table_create_sql('user_data.child_table'::regclass, 'in');
+
+DO $$BEGIN
+        EXECUTE sys_syn.in_table_create_sql('user_data.child_table'::regclass, 'in');
+END$$;
 
 INSERT INTO user_data.parent_table(
         parent_table_id,       parent_table_text)
@@ -49,9 +51,6 @@ INSERT INTO sys_syn.out_groups_def VALUES ('out');
 SELECT sys_syn.out_table_create('user_data', 'parent_table', 'out');
 
 SELECT sys_syn.out_table_create('user_data', 'child_table', 'out');
-
-ALTER TABLE user_data.parent_table_out_queue_1
-  ADD FOREIGN KEY (trans_id_in, id) REFERENCES user_data.parent_table_in_1 (trans_id_in, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 SELECT user_data.parent_table_pull(FALSE);
 SELECT user_data.parent_table_out_move_1();

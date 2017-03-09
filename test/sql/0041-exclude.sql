@@ -1,7 +1,6 @@
 BEGIN;
 
 CREATE EXTENSION tinyint SCHEMA public;
-CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 
 CREATE SCHEMA user_data
@@ -24,7 +23,7 @@ VALUES (1,              'Exclude from in'),
        (2,              'Exclude from out'),
        (3,              'test_data');
 
-INSERT INTO user_data.test_table_exclude_1 VALUES (ROW(1));
+INSERT INTO user_data.test_table_exclude VALUES (ROW(1));
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 

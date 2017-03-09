@@ -11,7 +11,4 @@ END$$;
 CREATE EXTENSION tinyint
         SCHEMA public;
 
-CREATE EXTENSION pgcrypto
-        SCHEMA public;
-
 ROLLBACK;

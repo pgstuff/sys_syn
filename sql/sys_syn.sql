@@ -114,7 +114,7 @@ ALTER TABLE sys_syn.lock_id_seq OWNER TO postgres;
 CREATE TABLE sys_syn.settings (
         trans_id_method                 sys_syn.trans_id_method NOT NULL DEFAULT 'seq'::sys_syn.trans_id_method,
         logical_replication             boolean                 NOT NULL DEFAULT false,
-        cluster_id                      text                    NOT NULL DEFAULT gen_random_uuid(),
+        cluster_id                      text                    NOT NULL,
         comments                        text                    NOT NULL DEFAULT ''
 );
 ALTER TABLE sys_syn.settings OWNER TO postgres;
@@ -122,6 +122,19 @@ CREATE UNIQUE INDEX settings_1_row_idx
         ON sys_syn.settings
         USING btree
         ((true));
+
+CREATE TABLE sys_syn.foreign_keys_for_c_sql (
+        database_path           text    NOT NULL,
+        foreign_key_id          text    NOT NULL,
+        foreign_in_table_id     text    NOT NULL,
+        primary_in_table_id     text    NOT NULL,
+        foreign_column_name     text    NOT NULL,
+        primary_column_name     text    NOT NULL
+);
+ALTER TABLE sys_syn.foreign_keys_for_c_sql OWNER TO postgres;
+ALTER TABLE ONLY sys_syn.foreign_keys_for_c_sql
+        ADD CONSTRAINT foreign_keys_for_c_sql_pkey
+                PRIMARY KEY (foreign_key_id, foreign_in_table_id, foreign_column_name);
 
 CREATE TABLE sys_syn.prepulls_def (
         prepull_id      text            NOT NULL,
@@ -153,6 +166,13 @@ CREATE TABLE sys_syn.in_column_transforms (
         relation_name_like      text,
         in_column_type          sys_syn.in_column_type,
         column_name_like        text,
+        in_table_id_like        text,
+        in_group_id_like        text,
+        in_pull_id_like         text,
+        schema_like             text,
+        is_key                  boolean,
+        primary_in_table_id_like text,
+        primary_column_name_like text,
         new_data_type           text,
         new_in_column_type      sys_syn.in_column_type,
         new_column_name         text,
@@ -288,7 +308,7 @@ CREATE TABLE sys_syn.in_foreign_keys (
 ALTER TABLE sys_syn.in_foreign_keys OWNER TO postgres;
 ALTER TABLE ONLY sys_syn.in_foreign_keys
         ADD CONSTRAINT in_foreign_keys_pkey
-                PRIMARY KEY (primary_in_table_id, foreign_in_table_id, foreign_key_index, primary_column_name, foreign_column_name);
+                PRIMARY KEY (foreign_in_table_id, foreign_key_index, foreign_column_name);
 ALTER TABLE sys_syn.in_foreign_keys
         ADD CONSTRAINT in_foreign_keys_primary_fkey FOREIGN KEY (primary_in_table_id, primary_column_name)
                 REFERENCES sys_syn.in_columns_def (in_table_id, column_name) MATCH SIMPLE
@@ -370,7 +390,7 @@ CREATE TABLE sys_syn.out_tables_def (
         enable_changes          boolean         NOT NULL DEFAULT TRUE,
         enable_deletes          boolean         NOT NULL DEFAULT TRUE,
         condition_sql           text,
-        claim_limit_rows        integer         NOT NULL DEFAULT 2147483647,
+        records_per_claim       integer         NOT NULL DEFAULT 150000,
         claim_queue_count       smallint,
         claim_fixed_by_id       boolean         NOT NULL DEFAULT false,
         claim_random_sample     smallint,
@@ -516,24 +536,24 @@ INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
         new_data_type,          new_column_name,
         expression)
-VALUES ('sys_syn-general',      50,             '{}',           'character varying',null,               null,
+VALUES ('sys_syn-general',      50,             '{}',           'character varying%',null,               null,
         'text',                 null,
         null);
 
 INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
-        new_data_type,          new_column_name,
-        expression)
-VALUES ('sys_syn-general',      50,             '{}',           'character varying(%)',null,            null,
-        'text',                 null,
-        null);
-
-INSERT INTO sys_syn.in_column_transforms(
-        rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
-        new_data_type,          new_column_name,
+        is_key,                 new_data_type,          new_column_name,
         expression)
 VALUES ('sys_syn-general',      100,            '{text_trim}',  'text',         null,                   null,
-        null,                   null,
+        false,                  null,                   null,
+        'trim(%1)');
+
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
+        is_key,                 new_data_type,          new_column_name,
+        expression)
+VALUES ('sys_syn-mariadb',      100,            '{text_trim}',  'text',         null,                   null,
+        true,                   null,                   null,
         'rtrim(%1)');
 
 INSERT INTO sys_syn.in_column_transforms(
@@ -554,6 +574,14 @@ VALUES ('sys_syn-mariadb',      100,            '{timestamp_infinity}', 'timesta
                 $$THEN '-infinity'::timestamp without time zone $$ ||
                 $$WHEN %1 >= '9999-12-31 23:59:59'::timestamp without time zone $$ ||
                 $$THEN 'infinity'::timestamp without time zone ELSE %1 END$$);
+
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
+        is_key,                 new_data_type,          new_column_name,
+        expression)
+VALUES ('sys_syn-oracle',       100,            '{text_trim}',  'text',         null,                   null,
+        true,                   null,                   null,
+        null);
 
 INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,              data_type_like,                 relation_name_like,
@@ -584,6 +612,14 @@ VALUES ('sys_syn-oracle',       100,            '{timestamptz_infinity}','timest
                 $$THEN '-infinity'::timestamp with time zone $$ ||
                 $$WHEN %1 >= '9999-12-31 23:59:59-00'::timestamp with time zone $$ ||
                 $$THEN 'infinity'::timestamp with time zone ELSE %1 END$$);
+
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
+        is_key,                 new_data_type,          new_column_name,
+        expression)
+VALUES ('sys_syn-mssql',        100,            '{text_trim}',  'text',         null,                   null,
+        true,                   null,                   null,
+        'rtrim(%1)');
 
 INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,              data_type_like,                 relation_name_like,
@@ -738,6 +774,14 @@ VALUES ('sys_syn-mssql',        100,            '{datetime2_infinity}', 'timesta
         NULL,   NULL,                   FALSE);
 
 INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       final_ids,      data_type_like, relation_name_like,     column_name_like,
+        is_key,                 new_data_type,          new_column_name,
+        expression)
+VALUES ('sys_syn-informix',     100,            '{text_trim}',  'text',         null,                   null,
+        true,                   null,                   null,
+        'rtrim(%1)');
+
+INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,              data_type_like, relation_name_like,
         column_name_like,       new_data_type,          new_column_name,
         expression)
@@ -821,6 +865,56 @@ CREATE CONSTRAINT TRIGGER out_column_transforms_check_old
         FOR EACH ROW EXECUTE PROCEDURE sys_syn.out_column_transforms_check_old();
 
 
+
+CREATE FUNCTION sys_syn.gen_pseudorandom_uuid(seed text)
+        RETURNS text
+        LANGUAGE 'plpgsql'
+        COST 1000
+        SECURITY DEFINER
+        VOLATILE AS $BODY$
+DECLARE
+        _hash text;
+BEGIN
+        PERFORM pg_sleep(.001);
+
+        _hash := md5(
+                        clock_timestamp()::text ||
+                        COALESCE(seed, 'a') ||
+                        transaction_timestamp()::text ||
+                        md5(COALESCE(current_setting('config_file', true), 'b')) ||
+                        md5(COALESCE(current_setting('cluster_name', true), 'c')) ||
+                        md5(COALESCE(current_setting('data_directory', true), 'd')) ||
+                        md5(COALESCE(current_setting('log_timezone', true), 'e')) ||
+                        md5(COALESCE(current_setting('TimeZone', true), 'f')) ||
+                        COALESCE(current_setting('transaction_isolation', true), 'g') ||
+                        COALESCE(current_setting('shared_buffers', true), 'h') ||
+                        COALESCE(current_setting('wal_level', true), 'i') ||
+                        COALESCE(current_setting('work_mem', true), 'j') ||
+                        -- If any of the following columns are missing after a major upgrade, delete the entire line.
+                        pg_backend_pid()::text ||
+                        (SELECT SUM(pid::int)::text || array_to_string(array_agg(state_change::text),',') FROM pg_stat_activity) ||
+                        (SELECT SUM(checkpoints_timed)::text || SUM(checkpoint_write_time)::text FROM pg_stat_bgwriter) ||
+                        (SELECT SUM(xact_commit)::text || SUM(tup_updated)::text || SUM(tup_inserted)::text FROM pg_stat_database)||
+                        (SELECT SUM(blks_hit)::text || SUM(blks_read)::text FROM pg_statio_all_sequences) ||
+                        (SELECT backend_xmin FROM pg_stat_get_activity(pg_backend_pid())) ||
+                        clock_timestamp()::text
+                );
+
+        IF _hash IS NULL THEN
+                _hash := upper(md5(COALESCE(seed, 'k') || clock_timestamp()::text));
+        END IF;
+
+        RETURN (substr(_hash,  1,  8) || '-' ||
+                substr(_hash,  9,  4) || '-' ||
+                substr(_hash, 13,  4) || '-' ||
+                substr(_hash, 17,  4) || '-' ||
+                substr(_hash, 21, 12));
+END;
+$BODY$;
+ALTER FUNCTION sys_syn.gen_pseudorandom_uuid(text) OWNER TO postgres;
+ALTER TABLE ONLY sys_syn.settings ALTER COLUMN cluster_id
+        SET DEFAULT sys_syn.gen_pseudorandom_uuid('sys_syn');
+
 CREATE FUNCTION sys_syn.quote_array_value (raw_value text)
         RETURNS text
         LANGUAGE plpgsql
@@ -870,15 +964,15 @@ END;
 $BODY$;
 ALTER FUNCTION sys_syn.array_to_sql(array_values text[]) OWNER TO postgres;
 
-CREATE FUNCTION sys_syn.distribute_load (range_seconds int, idle_part int default 3) RETURNS void
+CREATE FUNCTION sys_syn.distribute_load (range_seconds int) RETURNS void
         LANGUAGE plpgsql
         COST 30000
         AS $BODY$
 BEGIN
-        PERFORM pg_sleep(range_seconds / idle_part + floor(random() * range_seconds / idle_part));
+        PERFORM pg_sleep(range_seconds / 3 + floor(random() * range_seconds / 3));
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.distribute_load(int, int) OWNER TO postgres;
+ALTER FUNCTION sys_syn.distribute_load(int) OWNER TO postgres;
 
 CREATE FUNCTION sys_syn.random_sleep (range_seconds int) RETURNS void
         LANGUAGE plpgsql
@@ -1164,9 +1258,26 @@ $TRIG$ LANGUAGE plpgsql;$$;
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
+        _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_exclude_insert')||
+                $$() RETURNS TRIGGER AS $TRIG$
+BEGIN
+        INSERT INTO $$ || schema::text || '.' || quote_ident(in_table_id||'_exclude_1') || $$ VALUES (new.*);
+        SET LOCAL sys_syn.pull_found_records = 1;
+        RETURN NULL;
+END;
+$TRIG$ LANGUAGE plpgsql;$$;
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
         _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_in_insert')||'
     BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_in') || '
     FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_in_insert') || '();';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_exclude_insert')||'
+    BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || '
+    FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude_insert') || '();';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1175,6 +1286,15 @@ $TRIG$ LANGUAGE plpgsql;$$;
         TRUE
 DO INSTEAD
         INSERT INTO ' || schema::text || '.' || quote_ident(in_table_id||'_in_1') || ' VALUES (NEW.*);
+';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+_sql_buffer := 'CREATE RULE '||quote_ident(in_table_id||'_exclude_insert_rule')||' AS
+        ON INSERT TO ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ' WHERE
+        TRUE
+DO INSTEAD
+        INSERT INTO ' || schema::text || '.' || quote_ident(in_table_id||'_exclude_1') || ' VALUES (NEW.*);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;*/
@@ -1307,6 +1427,7 @@ CREATE FUNCTION sys_syn.in_table_create_sql (
         full_prepull_id         text DEFAULT NULL::text,
         changes_prepull_id      text DEFAULT NULL::text,
         in_table_id             text DEFAULT NULL::text,
+        in_pull_id              text DEFAULT NULL::text,
         in_partition            sys_syn.create_in_partition DEFAULT NULL::sys_syn.create_in_partition,
         in_partition_count      smallint DEFAULT NULL::smallint,
         in_partitions           sys_syn.create_in_partition[] DEFAULT NULL::sys_syn.create_in_partition[]
@@ -1315,6 +1436,7 @@ CREATE FUNCTION sys_syn.in_table_create_sql (
         LANGUAGE plpgsql COST 10
         AS $_$
 DECLARE
+        _in_table_id            TEXT;
         _in_column_transform_rule_group_ids text[];
         _sql_buffer             TEXT := NULL;
         _column                 pg_catalog.pg_attribute%ROWTYPE;
@@ -1331,6 +1453,8 @@ DECLARE
         _final_ids              text[];
         _omit                   boolean;
         _last_priority          smallint;
+        _foreign_keys_for_c_sql sys_syn.foreign_keys_for_c_sql%ROWTYPE;
+        _foreign_key_index      smallint;
         _in_partitions          sys_syn.create_in_partition[];
         _create_in_partition    sys_syn.create_in_partition;
         _first_item             boolean;
@@ -1340,6 +1464,11 @@ BEGIN
                 USING HINT =
                     'If you use in_partitions, leave in_partition and in_partition_count NULL.';
         END IF;
+
+        SELECT  COALESCE(in_table_id, pg_class.relname)
+        INTO    _in_table_id
+        FROM    pg_class
+        WHERE   pg_class.oid = relation::oid;
 
         IF in_partition_count IS NOT NULL THEN
                 --SELECT  array_agg(COALESCE(in_partition, ('',NULL)::sys_syn.create_in_partition))
@@ -1380,6 +1509,11 @@ BEGIN
                 WHERE   pg_index.indrelid = relation AND
                         pg_index.indisprimary
         );
+
+        CREATE TEMPORARY TABLE foreign_key_ids_temp (
+                foreign_key_id          text            NOT NULL,
+                foreign_key_index       smallint        NOT NULL
+        ) ON COMMIT DROP;
 
         FOR     _column IN
         SELECT  *
@@ -1430,6 +1564,31 @@ BEGIN
                 _final_ids              := ARRAY[]::TEXT[];
                 _omit                   := FALSE;
                 _last_priority          := -1;
+                _foreign_key_index      := NULL;
+
+                SELECT  *
+                INTO    _foreign_keys_for_c_sql
+                FROM    sys_syn.foreign_keys_for_c_sql
+                        JOIN sys_syn.in_tables_def ON
+                                in_tables_def.in_table_id = foreign_keys_for_c_sql.primary_in_table_id
+                WHERE   foreign_keys_for_c_sql.foreign_column_name = _column_name AND
+                        foreign_keys_for_c_sql.foreign_in_table_id = _in_table_id;
+
+                IF _foreign_keys_for_c_sql IS NOT NULL THEN
+                        SELECT  foreign_key_ids_temp.foreign_key_index
+                        INTO    _foreign_key_index
+                        FROM    foreign_key_ids_temp
+                        WHERE   foreign_key_ids_temp.foreign_key_id = _foreign_keys_for_c_sql.foreign_key_id;
+
+                        IF _foreign_key_index IS NULL THEN
+                                SELECT  COALESCE(MAX(foreign_key_index), 0) + 1
+                                INTO    _foreign_key_index
+                                FROM    foreign_key_ids_temp;
+
+                                INSERT INTO foreign_key_ids_temp
+                                VALUES (_foreign_keys_for_c_sql.foreign_key_id, _foreign_key_index);
+                        END IF;
+                END IF;
 
                 FOR     _in_column_transform IN
                 SELECT  *
@@ -1450,7 +1609,27 @@ BEGIN
                                 (_in_column_transform.column_name_like          IS NULL OR
                                         _column_name            LIKE _in_column_transform.column_name_like) AND
                                 (_in_column_transform.in_column_type            IS NULL OR
-                                        _in_column_type = _in_column_transform.in_column_type)
+                                        _in_column_type = _in_column_transform.in_column_type) AND
+                                (_in_column_transform.in_table_id_like          IS NULL OR
+                                        _in_table_id                            LIKE _in_column_transform.in_table_id_like) AND
+                                (_in_column_transform.in_group_id_like          IS NULL OR
+                                        in_group_id                             LIKE _in_column_transform.in_group_id_like) AND
+                                (_in_column_transform.in_pull_id_like           IS NULL OR
+                                        in_pull_id                              LIKE _in_column_transform.in_pull_id_like) AND
+                                (_in_column_transform.schema_like               IS NULL OR
+                                        schema::text                            LIKE _in_column_transform.schema_like) AND
+                                (_in_column_transform.is_key                    IS NULL OR
+                                        (_in_column_type = 'Id'::sys_syn.in_column_type OR
+                                        _foreign_keys_for_c_sql.primary_in_table_id IS NOT NULL) = _in_column_transform.is_key) AND
+                                (_in_column_transform.primary_in_table_id_like IS NULL OR
+                                        (_foreign_keys_for_c_sql.primary_in_table_id LIKE
+                                                _in_column_transform.primary_in_table_id_like AND
+                                         _foreign_keys_for_c_sql.primary_column_name LIKE
+                                                _in_column_transform.primary_column_name_like) OR
+                                (_in_column_transform.in_column_type    = 'Id'::sys_syn.in_column_type AND
+                                 _in_table_id                           LIKE _in_column_transform.primary_in_table_id_like AND
+                                _column_name                            LIKE _in_column_transform.primary_column_name_like
+                                ))
                                 THEN
 
                                 IF _in_column_transform.priority = _last_priority THEN
@@ -1522,13 +1701,9 @@ BEGIN
                                                         pg_class.relnamespace = pg_namespace.oid
                                         WHERE   pg_class.oid = relation::oid
                 )||$$,
-                in_table_id     => $$||(
-                                        SELECT  quote_literal(COALESCE(in_table_id, pg_class.relname))
-                                        FROM    pg_class
-                                        WHERE   pg_class.oid = relation::oid
-                )||$$,
-                in_group_id     => $$||quote_literal(in_table_create_sql.in_group_id)||$$,
-                in_pull_id      => NULL,
+                in_table_id     => $$||quote_literal(_in_table_id)||$$,
+                in_group_id     => $$||quote_literal(in_group_id)||$$,
+                in_pull_id      => $$||quote_nullable(in_pull_id)||$$,
                 in_columns      => ARRAY[
 $$;
                         ELSE
@@ -1536,12 +1711,15 @@ $$;
 ';
                         END IF;
 
-                        _sql_buffer := _sql_buffer || $X$                       $COL$("$X$||
-                                _column_name||$X$","$X$||
-                                _format_type||$X$",$X$||
-                                _in_column_type||$X$,"$X$||
-                                replace(_source_in_expression, '"', '\"')||$X$",$X$||
-                                COALESCE(_array_order::text, '')||$X$,,,,)$COL$$X$;
+                        _sql_buffer := _sql_buffer || $X$                       $COL$($X$||
+                                sys_syn.quote_array_value(_column_name)||$X$,$X$||
+                                sys_syn.quote_array_value(_format_type)||$X$,$X$||
+                                _in_column_type||$X$,$X$||
+                                sys_syn.quote_array_value(_source_in_expression)||$X$,$X$||
+                                COALESCE(_array_order::text, '')||$X$,$X$||
+                                COALESCE(_foreign_key_index::TEXT,'')||$X$,$X$||
+                                sys_syn.quote_array_value(_foreign_keys_for_c_sql.primary_in_table_id)||$X$,$X$||
+                                sys_syn.quote_array_value(_foreign_keys_for_c_sql.primary_column_name)||$X$,)$COL$$X$;
                 END IF;
 
                 FOR     _create_in_column IN
@@ -1552,6 +1730,8 @@ $$;
                 END LOOP;
 
         END LOOP;
+
+        DROP TABLE foreign_key_ids_temp;
 
         _sql_buffer := _sql_buffer || $$
                 ]::sys_syn.create_in_column[],
@@ -1602,6 +1782,7 @@ ALTER FUNCTION sys_syn.in_table_create_sql(
         full_prepull_id         text,
         changes_prepull_id      text,
         in_table_id             text,
+        in_pull_id              text,
         in_partition            sys_syn.create_in_partition,
         in_partition_count      smallint,
         in_partitions           sys_syn.create_in_partition[]
@@ -1633,6 +1814,8 @@ DECLARE
         _final_ids              text[];
         _omit                   boolean;
         _last_priority          smallint;
+        _foreign_keys_for_c_sql sys_syn.foreign_keys_for_c_sql%ROWTYPE;
+        _foreign_key_index      smallint;
 BEGIN
         _sql_buffer := NULL;
         _relation := in_table_columns_add_sql.relation;
@@ -1671,6 +1854,11 @@ BEGIN
                         pg_index.indisprimary
         );
 
+        CREATE TEMPORARY TABLE foreign_key_ids_temp (
+                foreign_key_id          text            NOT NULL,
+                foreign_key_index       smallint        NOT NULL
+        ) ON COMMIT DROP;
+
         FOR     _column IN
         SELECT  *
         FROM    pg_catalog.pg_attribute
@@ -1686,8 +1874,8 @@ BEGIN
 
                 IF _in_table_def.full_prepull_id IS NOT NULL AND _column.attname = 'trans_id_in' THEN
                         _in_column_type := 'TransIdIn'::sys_syn.in_column_type;
-                ELSIF in_table_columns_add_sql.id_columns IS NOT NULL THEN
-                        IF _column.attname = ANY(in_table_columns_add_sql.id_columns) THEN
+                ELSIF id_columns IS NOT NULL THEN
+                        IF _column.attname = ANY(id_columns) THEN
                                 _in_column_type := 'Id'::sys_syn.in_column_type;
                         ELSE
                                 _in_column_type := 'Attribute'::sys_syn.in_column_type;
@@ -1706,9 +1894,8 @@ BEGIN
                         END IF;
                 END IF;
 
-                IF in_table_columns_add_sql.no_diff_columns IS NOT NULL AND
-                        _in_column_type = 'Attribute'::sys_syn.in_column_type THEN
-                        IF _column.attname = ANY(in_table_columns_add_sql.no_diff_columns) THEN
+                IF no_diff_columns IS NOT NULL AND _in_column_type = 'Attribute'::sys_syn.in_column_type THEN
+                        IF _column.attname = ANY(no_diff_columns) THEN
                                 _in_column_type := 'NoDiff'::sys_syn.in_column_type;
                         END IF;
                 END IF;
@@ -1720,6 +1907,31 @@ BEGIN
                 _final_ids              := ARRAY[]::TEXT[];
                 _omit                   := FALSE;
                 _last_priority          := -1;
+                _foreign_key_index      := NULL;
+
+                SELECT  *
+                INTO    _foreign_keys_for_c_sql
+                FROM    sys_syn.foreign_keys_for_c_sql
+                        JOIN sys_syn.in_tables_def ON
+                                in_tables_def.in_table_id = foreign_keys_for_c_sql.primary_in_table_id
+                WHERE   foreign_keys_for_c_sql.foreign_column_name = _column_name AND
+                        foreign_keys_for_c_sql.foreign_in_table_id = _in_table_def.in_table_id;
+
+                IF _foreign_keys_for_c_sql IS NOT NULL THEN
+                        SELECT  foreign_key_ids_temp.foreign_key_index
+                        INTO    _foreign_key_index
+                        FROM    foreign_key_ids_temp
+                        WHERE   foreign_key_ids_temp.foreign_key_id = _foreign_keys_for_c_sql.foreign_key_id;
+
+                        IF _foreign_key_index IS NULL THEN
+                                SELECT  COALESCE(MAX(foreign_key_index), 0) + 1
+                                INTO    _foreign_key_index
+                                FROM    foreign_key_ids_temp;
+
+                                INSERT INTO foreign_key_ids_temp
+                                VALUES (_foreign_keys_for_c_sql.foreign_key_id, _foreign_key_index);
+                        END IF;
+                END IF;
 
                 FOR     _in_column_transform IN
                 SELECT  *
@@ -1740,7 +1952,27 @@ BEGIN
                                 (_in_column_transform.column_name_like          IS NULL OR
                                         _column_name            LIKE _in_column_transform.column_name_like) AND
                                 (_in_column_transform.in_column_type            IS NULL OR
-                                        _in_column_type = _in_column_transform.in_column_type)
+                                        _in_column_type = _in_column_transform.in_column_type) AND
+                                (_in_column_transform.in_table_id_like          IS NULL OR
+                                        _in_table_def.in_table_id               LIKE _in_column_transform.in_table_id_like) AND
+                                (_in_column_transform.in_group_id_like          IS NULL OR
+                                        _in_table_def.in_group_id               LIKE _in_column_transform.in_group_id_like) AND
+                                (_in_column_transform.in_pull_id_like           IS NULL OR
+                                        _in_table_def.in_pull_id                LIKE _in_column_transform.in_pull_id_like) AND
+                                (_in_column_transform.schema_like               IS NULL OR
+                                        _in_table_def.schema::text              LIKE _in_column_transform.schema_like) AND
+                                (_in_column_transform.is_key                    IS NULL OR
+                                        (_in_column_type = 'Id'::sys_syn.in_column_type OR
+                                        _foreign_keys_for_c_sql.primary_in_table_id IS NOT NULL) = _in_column_transform.is_key) AND
+                                (_in_column_transform.primary_in_table_id_like IS NULL OR
+                                        (_foreign_keys_for_c_sql.primary_in_table_id LIKE
+                                                _in_column_transform.primary_in_table_id_like AND
+                                         _foreign_keys_for_c_sql.primary_column_name LIKE
+                                                _in_column_transform.primary_column_name_like) OR
+                                (_in_column_transform.in_column_type    = 'Id'::sys_syn.in_column_type AND
+                                 _in_table_def.in_table_id              LIKE _in_column_transform.primary_in_table_id_like AND
+                                _column_name                            LIKE _in_column_transform.primary_column_name_like
+                                ))
                                 THEN
 
                                 IF _in_column_transform.priority = _last_priority THEN
@@ -1812,22 +2044,26 @@ $$;
 ';
                         END IF;
 
-                        _sql_buffer := _sql_buffer || $X$                       $COL$("$X$||
-                                _column_name||$X$","$X$||
-                                _format_type||$X$",$X$||
-                                _in_column_type||$X$,"$X$||
-                                replace(_source_in_expression, '"', '\"')||$X$",,,,,)$COL$$X$;
+                        _sql_buffer := _sql_buffer || $X$                       $COL$($X$||
+                                sys_syn.quote_array_value(_column_name)||$X$,$X$||
+                                sys_syn.quote_array_value(_format_type)||$X$,$X$||
+                                _in_column_type||$X$,$X$||
+                                sys_syn.quote_array_value(_source_in_expression)||$X$,,$X$||
+                                COALESCE(_foreign_key_index::TEXT,'')||$X$,$X$||
+                                sys_syn.quote_array_value(_foreign_keys_for_c_sql.primary_in_table_id)||$X$,$X$||
+                                sys_syn.quote_array_value(_foreign_keys_for_c_sql.primary_column_name)||$X$,)$COL$$X$;
                 END IF;
 
                 FOR     _create_in_column IN
-                SELECT  *
-                FROM    unnest(_create_in_columns) AS create_in_columns
+                SELECT  unnest(_create_in_columns)
                 LOOP
                         _sql_buffer := _sql_buffer || $$        '"$$||
                                         _create_in_column::text||$$"'$$;
                 END LOOP;
 
         END LOOP;
+
+        DROP TABLE foreign_key_ids_temp;
 
         _sql_buffer := _sql_buffer || $$
                 ]::sys_syn.create_in_column[]
@@ -2204,7 +2440,7 @@ CREATE FUNCTION sys_syn.out_table_create_sql (
         enable_changes          boolean         DEFAULT TRUE,
         enable_deletes          boolean         DEFAULT TRUE,
         condition_sql           text            DEFAULT NULL,
-        claim_limit_rows        integer         DEFAULT 2147483647,
+        records_per_claim       integer         DEFAULT 150000,
         claim_queue_count       smallint        DEFAULT NULL,
         claim_fixed_by_id       boolean         DEFAULT false,
         claim_random_sample     smallint        DEFAULT NULL,
@@ -2443,10 +2679,10 @@ $$;
                         END IF;
 
                         _sql_buffer := _sql_buffer || $X$                       $COL$("$X$||
-                                _create_out_column.column_name||$X$","$X$||
-                                replace(_create_out_column.column_expression, '"', '\"')||$X$",$X$||
+                                _create_out_column.column_name||$X$",$X$||
+                                sys_syn.quote_array_value(_create_out_column.column_expression)||$X$,$X$||
                                 COALESCE(_create_out_column.queue_column_name::text, '')||$X$,$X$||
-                                COALESCE('"' || replace(_create_out_column.queue_column_expression, '"', '\"') || '"', '') ||
+                                sys_syn.quote_array_value(_create_out_column.queue_column_expression) ||
                                 ',' || COALESCE(_create_out_column.in_column_type::text, '') || ')$COL$';
 
                 END LOOP;
@@ -2480,7 +2716,7 @@ $$;
                 enable_changes          => $$||quote_nullable(enable_changes)||$$,
                 enable_deletes          => $$||quote_nullable(enable_deletes)||$$,
                 condition_sql           => $$||quote_nullable(condition_sql)||$$,
-                claim_limit_rows        => $$||quote_nullable(claim_limit_rows)||$$,
+                records_per_claim       => $$||quote_nullable(records_per_claim)||$$,
                 claim_queue_count       => $$||quote_nullable(claim_queue_count)||$$,
                 claim_fixed_by_id       => $$||quote_nullable(claim_fixed_by_id)||$$,
                 claim_random_sample     => $$||quote_nullable(claim_random_sample)||$$,
@@ -2505,7 +2741,7 @@ ALTER FUNCTION sys_syn.out_table_create_sql(
         enable_changes          boolean,
         enable_deletes          boolean,
         condition_sql           text,
-        claim_limit_rows        integer,
+        records_per_claim       integer,
         claim_queue_count       smallint,
         claim_fixed_by_id       boolean,
         claim_random_sample     smallint,
@@ -2526,7 +2762,7 @@ CREATE FUNCTION sys_syn.out_table_create (
         enable_changes          boolean         DEFAULT TRUE,
         enable_deletes          boolean         DEFAULT TRUE,
         condition_sql           text            DEFAULT NULL,
-        claim_limit_rows        integer         DEFAULT 2147483647,
+        records_per_claim       integer         DEFAULT 150000,
         claim_queue_count       smallint        DEFAULT NULL,
         claim_fixed_by_id       boolean         DEFAULT false,
         claim_random_sample     smallint        DEFAULT NULL,
@@ -2564,12 +2800,12 @@ BEGIN
         INSERT INTO sys_syn.out_tables_def(
                 in_table_id,    out_group_id,   schema, data_view,      out_log_lifetime,
                 enable_adds,    enable_changes, enable_deletes, condition_sql,
-                claim_limit_rows,       claim_queue_count,      claim_fixed_by_id,     claim_random_sample,    queue_pid_used_age,
+                records_per_claim,      claim_queue_count,      claim_fixed_by_id,     claim_random_sample,    queue_pid_used_age,
                 record_comparison_different,    record_comparison_same)
         VALUES (
                 in_table_id,    out_group_id,   schema, data_view,      out_log_lifetime,
                 enable_adds,    enable_changes, enable_deletes, condition_sql,
-                claim_limit_rows,       claim_queue_count,      claim_fixed_by_id,     claim_random_sample,    queue_pid_used_age,
+                records_per_claim,      claim_queue_count,      claim_fixed_by_id,     claim_random_sample,    queue_pid_used_age,
                 record_comparison_different,    record_comparison_same);
 
         _sql_name_type_in_id            := schema::text || '.' || quote_ident(in_table_id||'_in_id');
@@ -2719,7 +2955,7 @@ ALTER FUNCTION sys_syn.out_table_create(
         enable_changes          boolean,
         enable_deletes          boolean,
         condition_sql           text,
-        claim_limit_rows        integer,
+        records_per_claim       integer,
         claim_queue_count       smallint,
         claim_fixed_by_id       boolean,
         claim_random_sample     smallint,
@@ -4020,6 +4256,43 @@ $TRIG$ LANGUAGE plpgsql;$$;
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
+        _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
+                quote_ident(_in_table_def.in_table_id||'_exclude_insert')||$$()
+        RETURNS TRIGGER AS $TRIG$
+DECLARE
+        _hash integer;
+BEGIN
+        _hash := get_byte(decode(md5(new.id::text), 'hex'), 0) % $$||_partition_count||$$;
+        $$;
+
+        _partition_index := 0;
+        FOR     _in_partition_def IN
+        SELECT  *
+        FROM    sys_syn.in_partitions_def
+        WHERE   in_partitions_def.in_table_id = util_in_table_code.in_table_id
+        ORDER BY in_partitions_def.partition_id
+        LOOP
+                IF _partition_index != 0 THEN
+                        _sql_buffer := _sql_buffer || 'ELS';
+                END IF;
+
+                _sql_buffer := _sql_buffer || 'IF _hash = '||_partition_index||' THEN
+                INSERT INTO '||_in_table_def.schema::text||'.'||
+                quote_ident(_in_table_def.in_table_id||'_exclude_'||_in_partition_def.partition_id)||' VALUES (new.*);
+        ';
+
+                _partition_index := _partition_index + 1;
+        END LOOP;
+
+        _sql_buffer := _sql_buffer || $$END IF;
+
+        SET LOCAL sys_syn.pull_found_records = 1;
+        RETURN NULL;
+END;
+$TRIG$ LANGUAGE plpgsql;$$;
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
 END;
 $_$;
 ALTER FUNCTION sys_syn.util_in_table_code(
@@ -5241,7 +5514,7 @@ DECLARE
         _random_sample  smallint;
         _possible_changes BOOLEAN := FALSE;
 BEGIN
-        SELECT  COALESCE($$||_function_name_ident||$$.limit_rows,    out_tables_def.claim_limit_rows),
+        SELECT  COALESCE($$||_function_name_ident||$$.limit_rows,    out_tables_def.records_per_claim),
                 COALESCE($$||_function_name_ident||$$.queue_count,   out_tables_def.claim_queue_count),
                 COALESCE($$||_function_name_ident||$$.fixed_by_id,   out_tables_def.claim_fixed_by_id),
                 COALESCE($$||_function_name_ident||$$.random_sample, out_tables_def.claim_random_sample)
@@ -6623,10 +6896,20 @@ BEGIN
                 WHERE   out_tables_def.in_table_id      = out_table_drop.in_table_id AND
                         out_tables_def.out_group_id     = out_table_drop.out_group_id);
 
+        IF _out_table_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find in_table_id ''%'', out_group_id ''%''.', in_table_id, out_group_id
+                USING HINT = 'Check to see if these IDs are defined in the sys_syn.out_tables_def table.';
+        END IF;
+
         _in_table_def := (
                 SELECT  in_tables_def
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = _out_table_def.in_table_id);
+
+        IF _in_table_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find in_table_id ''%''.', in_table_id
+                USING HINT = 'Check to see if this ID is defined in the sys_syn.in_tables_def table.';
+        END IF;
 
         _sql_name_prefix        := _out_table_def.in_table_id || '_' || _out_table_def.out_group_id;
 
@@ -6703,10 +6986,20 @@ BEGIN
                 WHERE   out_tables_def.in_table_id      = out_table_drop.in_table_id AND
                         out_tables_def.out_group_id     = out_table_drop.out_group_id);
 
+        IF _out_table_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find in_table_id ''%'', out_group_id ''%''.', in_table_id, out_group_id
+                USING HINT = 'Check to see if these IDs are defined in the sys_syn.out_tables_def table.';
+        END IF;
+
         _in_table_def := (
                 SELECT  in_tables_def
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = out_table_drop.in_table_id);
+
+        IF _in_table_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find in_table_id ''%''.', in_table_id
+                USING HINT = 'Check to see if this ID is defined in the sys_syn.in_tables_def table.';
+        END IF;
 
         FOR     _in_partition_def IN
         SELECT  *
@@ -6742,12 +7035,21 @@ CREATE FUNCTION sys_syn.in_pull_drop (in_pull_id text)
 $BODY$
 DECLARE
         _in_pull_def                    sys_syn.in_pulls_def%ROWTYPE;
+        _sql_command_prefix             TEXT;
         _in_pull_sequence_ids_to_delete TEXT[];
 BEGIN
         _in_pull_def := (
                 SELECT  in_pulls_def
                 FROM    sys_syn.in_pulls_def
                 WHERE   in_pulls_def.in_pull_id = in_pull_drop.in_pull_id);
+
+        IF _in_pull_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find in_pull_id ''%''.', in_pull_id
+                USING HINT = 'Check to see if this ID is defined in the sys_syn.in_pulls_def table.';
+        END IF;
+
+        _sql_command_prefix := 'DROP FUNCTION IF EXISTS ' || _in_pull_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_in_pull_def.in_pull_id||'_pull') || '(boolean)';
 
         SELECT  array_agg(in_pull_sequences_def.in_pull_sequence_id)
         INTO    _in_pull_sequence_ids_to_delete
@@ -6806,6 +7108,11 @@ BEGIN
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = in_table_drop.in_table_id);
 
+        IF _in_table_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find in_table_id ''%''.', in_table_id
+                USING HINT = 'Check to see if this ID is defined in the sys_syn.in_tables_def table.';
+        END IF;
+
         IF cascade THEN
                 FOR     _out_table_def IN
                 SELECT  *
@@ -6827,8 +7134,14 @@ BEGIN
         EXECUTE 'DROP TRIGGER '||quote_ident(_in_table_def.in_table_id||'_in_insert')||' ON '||_in_table_def.schema::text||
                 '.'||quote_ident(_in_table_def.in_table_id||'_in');
 
+        EXECUTE 'DROP TRIGGER '||quote_ident(_in_table_def.in_table_id||'_exclude_insert')||' ON '||_in_table_def.schema::text||
+                '.'||quote_ident(_in_table_def.in_table_id||'_exclude');
+
         _sql_command_prefix := 'DROP FUNCTION ' || _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_insert') || '()';
+
+        _sql_command_prefix := 'DROP FUNCTION ' || _in_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude_insert') || '()';
 
         _sql_command_prefix := 'DROP TABLE '|| _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude');
@@ -6878,13 +7191,17 @@ BEGIN
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = in_table_drop_partition.in_table_id);
 
+        IF _in_table_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find in_table_id ''%''.', in_table_id
+                USING HINT = 'Check to see if this ID is defined in the sys_syn.in_tables_def table.';
+        END IF;
+
         _part_suffix := '_' || partition_id;
 
         _sql_command_prefix := 'DROP FUNCTION IF EXISTS ' || _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_vacuum'||_part_suffix) || '(sys_syn.trans_id)';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_delete_unmoved'||_part_suffix) ||
                 '(sys_syn.trans_id)';
-        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_pull'||_part_suffix) || '(boolean)';
 
         _sql_command_prefix := 'DROP TABLE '|| _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude'||_part_suffix);
@@ -6910,6 +7227,11 @@ BEGIN
                 SELECT  prepulls_def
                 FROM    sys_syn.prepulls_def
                 WHERE   prepulls_def.prepull_id = prepull_drop.prepull_id);
+
+        IF _prepull_def IS NULL THEN
+                RAISE EXCEPTION 'Cannot find prepull_id ''%''.', prepull_id
+                USING HINT = 'Check to see if this ID is defined in the sys_syn.prepulls_def table.';
+        END IF;
 
         _sql_command_prefix := 'DROP FUNCTION ' || _prepull_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_prepull_def.prepull_id||'_prepull_full') || '()';
@@ -6956,6 +7278,7 @@ FROM    sys_syn.in_columns_def;
 ALTER TABLE sys_syn.in_table_columns_view OWNER TO postgres;
 
 
+SELECT pg_catalog.pg_extension_config_dump('sys_syn.foreign_keys_for_c_sql', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_column_transforms', $$WHERE rule_group_id NOT LIKE 'sys_syn-%'$$);
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_foreign_keys', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_groups_def', '');

@@ -1,6 +1,5 @@
 BEGIN;
 CREATE EXTENSION tinyint SCHEMA public;
-CREATE EXTENSION pgcrypto SCHEMA public;
 CREATE EXTENSION sys_syn;
 INSERT INTO sys_syn.in_column_transforms(
         rule_group_id,          priority,       final_ids,              data_type_like,         relation_name_like,

@@ -19,7 +19,7 @@ An asynchronous, loosely coupled, one-to-many system replication kit.
 
 `sys_syn` is intended to operate between different database software.  The source database may be accessed via foreign data wrappers (FDWs).  The destination database can query the queue table via a view that provides compatibility with non-PostgreSQL database server software.
 
-The workflow is:
+The runtime workflow is:
 
 . An optional prepull operation fetches data from a specified group of tables before the next steps are run.
 . Pull or push (full tables or a subset of whole objects).  The pull runs the input transformations.
@@ -40,6 +40,28 @@ The queue table allows for concurrent batching and robust error workflows.
 
 This workflow is run by executing generated stored procedures.  There are functions to generate lines for crontab or inserting jobs into pgAgent if you want to run these procedures automatically via either of those technologies.  You may also push rows and call the procedures manually for an event driven workflow.
 
+The setup workflow is:
+
+* Install the `sys_syn` extension.
+
+* Optionally set a `cluster_id`.
+
+* Create 1 or more in groups (`sys_syn.in_groups_def`).
+
+* Optionally add in column transform rules to `sys_syn.in_column_transforms`.  This is only used for `in_table_create_sql`.
+
+* Optionally add foreign keys to `sys_syn.foreign_keys_for_c_sql`.  This is only used for `in_table_create_sql`.
+
+* Optionally use `sys_syn.in_table_create_sql` to create the `sys_syn.in_table_create` call.
+
+* Create 1 or more input tables (`sys_syn.in_table_create`).
+
+* Create 1 or more out groups (`sys_syn.out_groups_def`).
+
+* Optionally use `sys_syn.out_table_create_sql` to create the `sys_syn.out_table_create` call.
+
+* Create 1 or more output tables (`sys_syn.out_table_create`).
+
 
 
 == User Guide
@@ -51,7 +73,6 @@ This workflow is run by executing generated stored procedures.  There are functi
 Usage requirements:
 
 - PostgreSQL 9.5 or above.
-- The `pgcrypto` PostgreSQL extension.
 
 Test requirements:
 
@@ -83,13 +104,12 @@ You only need to run this on the database(s) that will run `sys_syn`.
 
 [source,sql]
 ----
-CREATE EXTENSION pgcrypto;
 CREATE EXTENSION sys_syn;
 ----
 
-If you use the sys_syn_dblink extension, be aware that it will store groups and foreign keys that are specific to this database (or a cluster of databases if you are using logical replication).  Because sys_syn_dblink supports multiple sys_syn clusters, it uses a unique identifier called cluster_id to associate these groups and keys to the correct sys_syn cluster.  By default, it is set to a GUID.   You may change it.
+If you use the `sys_syn_dblink` extension, be aware that it will store groups and foreign keys that are specific to this database (or a cluster of databases if you are using logical replication).  Because `sys_syn_dblink` supports multiple `sys_syn` clusters, it uses a unique identifier called `cluster_id` to associate these groups and keys to the correct `sys_syn` cluster.  By default, it is set to a GUID.   You may change it.
 
-The settings table is empty until sys_syn is used to move data.  You can insert a settings record before then.
+The settings table is empty until `sys_syn` is used to move data.  You can insert a settings record before then.
 
 [source,sql]
 ----
@@ -103,7 +123,7 @@ If a settings record already exists, you may change the cluster_id with:
 UPDATE sys_syn.settings SET cluster_id = 'sys_syn-test';
 ----
 
-CAUTION:  Do not change the cluster_id if a sys_syn_dblink database is referencing it.
+WARNING:  Do not change the `cluster_id` if a `sys_syn_dblink` database is referencing it.
 
 
 
@@ -149,6 +169,17 @@ An input group identifies the source system or application.  You may associate c
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
 ----
 
+CAUTION:  If the source database technology ignores trailing spaces for equality operations, then you should use an `in_column_transform` to `rtrim` key columns on both primary and foreign keys.  There are some stock `rule_group_id`'s that set this up for you, but you have to declare foreign keys for joins to be reproduced accurately.
+
+In this example, the `sys_syn-general` `rule_group_id` and one other `rule_group_id` (to be altered to match your source database technology) are activated to setup the proper string trimming when foreign keys are declared.
+
+[source,sql]
+----
+INSERT INTO sys_syn.in_groups_def
+        (in_group_id,   parent_in_group_id,     in_column_transform_rule_group_ids)
+VALUES  ('in',          NULL,                   ARRAY['sys_syn-CHANGETHIS','sys_syn-general']);
+----
+
 
 
 ===== Add an Input Table
@@ -182,7 +213,7 @@ SELECT  sys_syn.in_table_create(
                 in_table_id     => 'test_table',
                 in_group_id     => 'in',
                 in_pull_id      => NULL,
-                in_columns     => ARRAY[
+                in_columns      => ARRAY[
                        $COL$("test_table_id","integer",Id,"in_source.test_table_id",,,,,)$COL$,
                        $COL$("test_table_text","text",Attribute,"in_source.test_table_text",,,,,)$COL$
                 ]::sys_syn.create_in_column[],
@@ -311,7 +342,7 @@ SELECT  sys_syn.out_table_create (
                 enable_changes          => 'true',
                 enable_deletes          => 'true',
                 condition_sql           => NULL,
-                claim_limit_rows        => '2147483647',
+                records_per_claim       => '150000',
                 claim_queue_count       => NULL,
                 claim_fixed_by_id       => 'false',
                 claim_random_sample     => NULL,
@@ -319,8 +350,9 @@ SELECT  sys_syn.out_table_create (
                 record_comparison_different=> NULL,
                 record_comparison_same     => NULL
         );
-);
 ----
+
+
 
 ===== Drop an Output Table
 
@@ -367,8 +399,12 @@ IMPORTANT:  The `move` function must be run in a transaction that is separate fr
 
 First, claim the `Unclaimed` records in the queue for processing by setting the `queue_state` to the `Claimed` status.
 
+Run these 3 statements in the same transaction, or add BEGIN/COMMIT:
+
 [source,sql]
 ----
+BEGIN;
+
 SELECT  sys_syn.in_trans_claim_start();
 
 UPDATE  user_data.test_table_out_queue_1
@@ -376,6 +412,8 @@ SET     queue_state = 'Claimed'::sys_syn.queue_state
 WHERE   queue_state = 'Unclaimed'::sys_syn.queue_state;
 
 SELECT  sys_syn.in_trans_finish();
+
+COMMIT;
 ----
 
 Next, read only the records that have the `Claimed` status.
@@ -428,6 +466,84 @@ A boolean is returned.  False indicates that there was nothing to do.  True indi
 If you use the `Hold` status, then you must set the `Hold` status back to `Unclaimed` when you want to retry those records.  The `hold_reason_count` value is incremented if the error is the same error that was recorded in the prior processing attempt.  This allows you to implement a backoff algorithm to avoid wasting resources on a potentially non-transient failure.
 
 If the object changes value while in the `Hold` status, then its queue status is automatically reset to `Unclaimed`.  This allows data corrections to be retried without a `Hold` delay.
+
+
+
+==== Advanced
+
+===== in_column_transforms
+
+When new tables are added, the rules in the `sys_syn.in_column_transforms` table adds, modifies, or removes columns.  The rule is applied when all criteria that is specified in the rule are true.
+
+.Columns
+rule_group_id::
+    NULL for a rule that applies to all tables.
+priority::
+    The order that the rule is applied.
+data_type_like::
+    The rule is applied to the column when the data type matches this `LIKE` pattern.
+relation_name_like::
+    The rule is applied to the column when the relation_name_like matches this `LIKE` pattern.
+in_column_type::
+    The rule is applied to the column when the in_column_type is this value.
+column_name_like::
+    The rule is applied to the column when the column name matches this `LIKE` pattern.
+in_table_id_like::
+    The rule is applied to the column when the in_table_id matches this `LIKE` pattern.
+in_group_id_like::
+    The rule is applied to the column when the in_group_id matches this `LIKE` pattern.
+in_pull_id_like::
+    The rule is applied to the column when the in_pull_id_like matches this `LIKE` pattern.
+schema_like::
+    The rule is applied to the column when the schema_like matches this `LIKE` pattern.
+is_key::
+    The rule is applied to the column when the column's primary or foreign status is this value.
+primary_in_table_id_like::
+    The rule is applied to the column when the foreign or primary key points to an `in_table_id` that matches this `LIKE` pattern.  The primary_column_name_like column is required when this is used.
+primary_column_name_like::
+    The rule is applied to the column when the foreign or primary key points to a `column_name` that matches this `LIKE` pattern.  The primary_in_table_id_like column is required when this is used.
+new_data_type::
+    Change the column's data type to this.
+new_in_column_type::
+    Change the column's in_column_type to this.
+new_column_name::
+    Change the column's name to this.
+new_array_order::
+    Change the column's array_order to this.
+expression::
+    Specify an expression for this column.  The prior column or expression can be referenced by %1
+create_in_columns::
+    Add the specified columns.
+omit::
+    Omit this column from the table.  If a variable_name was specified, the associated expression is stored into this variable.  This can be accessed from other expressions.
+final_ids::
+    Stop processing rules with any of these IDs.
+final_rule::
+    Stop processing all rules after this one.
+comments::
+    If you want to add comments about this rule in this table, add them in this column.
+
+
+
+===== foreign_keys_for_c_sql
+
+If you use `sys_syn.in_table_create_sql` to create the call to `in_table_create`, then you may want to use the `sys_syn.foreign_keys_for_c_sql` table to define foreign keys.  When you do this, `in_table_create_sql` will insert these foreign keys into the `in_columns` array when they are referenced.
+
+The following is an example of a value insert, but it is more practical to export all of the foreign keys from your source database and import that into this table.  Use the `database_path` identifier to delete all of the keys related to a specific database when you need to refresh that database's foreign keys data again.
+
+[source,sql]
+----
+DELETE FROM sys_syn.foreign_keys_for_c_sql
+WHERE   database_path = 'server_name/service_instance/database_name';
+
+INSERT INTO sys_syn.foreign_keys_for_c_sql (
+        database_path,                                  foreign_key_id,
+        foreign_in_table_id,                            primary_in_table_id,
+        foreign_column_name,                            primary_column_name)
+VALUES ('server_name/service_instance/database_name',   'test_fkey',
+        'child_table',                                  'parent_table',
+        'parent_table_id',                              'parent_table_id');
+----
 
 
 
