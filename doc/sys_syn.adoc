@@ -609,7 +609,16 @@ unset PGHOST
 
 
 
-=== PL/pgSQL Debugger
+=== More Examples
+
+See the `test` directory for more examples.
+
+
+
+=== Supplemental Information
+
+
+==== PL/pgSQL Debugger
 
 You can use the PL/pgSQL debugger in pgAdmin3 if you build and install the following extension.  You may want to change the install directory and use a different server restart command depending on your distribution and instance.  If you have access, the `/usr/local/src` directory is a good location to store the source code.  However, you will not need it again.  If you upgrade PostgreSQL to a different major version, you will need to download a fresh copy and install it again.
 
@@ -646,9 +655,151 @@ CREATE EXTENSION pldbgapi;
 
 
 
-=== More Examples
+==== Compressed Tablespace
 
-See the `test` directory for more examples.
+Synchronization requires about 3 times the storage requirements of the uncompressed source data (assuming that you sync every row and column), depending on the primary key length relative to the other columns.  Using compression may allow the synchronization process to only consume the same amount of storage as the source system.  Tables that use a single 32-bit integer for their primary key require less storage.  Using a compressed file system can be very beneficial for both performance and storage efficiency.  The following lets you evaluate a compressed tablespace.  Do not use these file image based file systems for any purpose other than this evaluation.  Because these commands affect the file systems on the machine, they are best run on a machine that is easily reinstalled, such as a new virtual machine that is dedicated for this evaluation.
+
+Change the file size from 3g to your desired file size.  A 3GB file will store about 9GB of synchronization data.  This will store about 3GB of data from your source system.  If `fallocate` fails because it is not supported for your file system, try "`dd if=/dev/zero of=/opt/var-lib-pgsql-compressed.img bs=1G count=3`"  If you are on a Btrfs file system, run "`touch /opt/var-lib-pgsql-compressed.img`" and "`chattr +C /opt/var-lib-pgsql-compressed.img`" before running `fallocate`.
+
+Btrfs may still have some recovery issues when using compression, so ZFS is a better option at this time.
+
+
+
+===== Btrfs on EL 7.x
+
+The following commands create a proof of concept.  For a more permanent solution, use a more typical Btrfs setup.  For that, do not use `single` metadata when creating the file system and do not turn off `checksums` when mounting it.  Some backup software require that instead of turning `atime` off, you leave the default `relatime` on.
+
+WARNING:  You will need to start PostgreSQL manually after rebooting if you follow these instructions.
+
+IMPORTANT:  You may need to change `loop0` to something else if that name is already in use.  Run "`ls /dev/loop0`" to check for its existence.  If you need to change it, also change it in the "after reboot" instructions below.
+
+[source,shell]
+----
+sudo fallocate -l 3g /opt/var-lib-pgsql-compressed.img
+sudo losetup /dev/loop0 /opt/var-lib-pgsql-compressed.img
+sudo mkfs.btrfs -m single /dev/loop0
+sudo mkdir /var/lib/pgsql/compressed
+sudo mount -o compress-force=lzo,noatime,nodatasum /dev/loop0 /var/lib/pgsql/compressed
+sudo chcon system_u:object_r:postgresql_db_t:s0 /var/lib/pgsql/compressed
+sudo chown postgres:postgres /var/lib/pgsql/compressed
+sudo chmod 700 /var/lib/pgsql/compressed
+sudo systemctl disable postgresql-9.6.service
+----
+
+The last line prevents PostgreSQL from starting on boot because you will need to mount the additional tablespace manually before PostgreSQL can start.
+
+Create a tablespace and create a database inside of it:
+
+[source,sql]
+----
+CREATE TABLESPACE compressed LOCATION '/var/lib/pgsql/compressed';
+CREATE DATABASE sys_syn_compressed WITH TABLESPACE=compressed;
+----
+
+When you reboot, you will need to run the following commands before PostgreSQL can access the tablespace:
+
+[source,shell]
+----
+sudo losetup /dev/loop0 /opt/var-lib-pgsql-compressed.img
+sudo mount -o compress-force=lzo,noatime,nodatasum /dev/loop0 /var/lib/pgsql/compressed
+sudo systemctl start postgresql-9.6.service
+----
+
+You can view the sizes with:
+
+[source,shell]
+----
+sudo btrfs filesystem usage /var/lib/pgsql/compressed
+----
+
+TIP:  Although the `nodatacow` option is useful for databases, it disables compression.
+
+
+
+===== ZFS on EL 6.x or 7.x
+
+The following commands create a proof of concept.  For a more permanent solution, create a typical ZFS pool.  For that, do not use `redundant_metadata=most`.  Also consider using multiple datasets per pool if you have a need for snapshots that only need to operate on a dataset within a pool.  Do not turn off checksums if the pool has redundancy.  If the ZFS pool has no redundancy and you want to use checksums, enable them in PostgreSQL.  PostgreSQL checksums verifies the data's integrity through more layers than storage checksums.  However, storage checksums are essential for utilizing the storage redundancy features.  Some backup software require that instead of turning `atime` off, you turn `relatime` on.  If you create separate pools or datasets for the WAL, you do not need "`logbias=throughput`" for the WAL.  "`logbias=throughput`" is beneficial for the data.
+
+WARNING:  This requires Dynamic Kernel Module Support (DKMS).  This will build kernel modules from source code for each kernel version that you run.
+
+[source,shell]
+----
+sudo yum install kernel-devel-$(uname -r)
+----
+
+If you receive the following error, then you will need to perform a "`sudo yum update`".  After running that, reboot ("`sudo shutdown -r now`") and run the above line again.
+
+`No package kernel-devel-VERSION available.`
+
+Once the kernel-devel package that matches the running kernel is installed, continue with:
+
+TIP:  If you already have the Extra Packages for Enterprise Linux (EPEL) repository installed, then you can skip the first line.
+
+[source,shell]
+----
+sudo yum install epel-release
+sudo yum install "http://download.zfsonlinux.org/epel/zfs-release.$(uname -r | egrep -o 'el+[0-9]+').noarch.rpm"
+sudo yum install zfs
+sudo modprobe zfs
+sudo fallocate -l 3g /opt/var-lib-pgsql-compressed.img
+sudo zpool create var-lib-pgsql-compressed /opt/var-lib-pgsql-compressed.img
+sudo zfs set mountpoint=/var/lib/pgsql/compressed var-lib-pgsql-compressed
+sudo chcon system_u:object_r:postgresql_db_t:s0 /var/lib/pgsql/compressed
+sudo chown postgres:postgres /var/lib/pgsql/compressed
+sudo chmod 700 /var/lib/pgsql/compressed
+sudo zfs set rootcontext=system_u:object_r:postgresql_db_t:s0 var-lib-pgsql-compressed
+sudo zfs set fscontext=system_u:object_r:postgresql_db_t:s0 var-lib-pgsql-compressed
+sudo zfs set context=system_u:object_r:postgresql_db_t:s0 var-lib-pgsql-compressed
+sudo zfs set defcontext=system_u:object_r:postgresql_db_t:s0 var-lib-pgsql-compressed
+sudo zfs set recordsize=8K var-lib-pgsql-compressed
+sudo zfs set compression=lz4 var-lib-pgsql-compressed
+sudo zfs set redundant_metadata=most var-lib-pgsql-compressed
+sudo zfs set primarycache=metadata var-lib-pgsql-compressed
+sudo zfs set secondarycache=metadata var-lib-pgsql-compressed
+sudo zfs set logbias=throughput var-lib-pgsql-compressed
+sudo zfs set dedup=off var-lib-pgsql-compressed
+sudo zfs set checksum=off var-lib-pgsql-compressed
+sudo zfs set atime=off var-lib-pgsql-compressed > /dev/null 2>&1
+----
+
+For EL 6 only:
+
+[source,shell]
+----
+sudo chkconfig zfs-import on
+sudo chkconfig zfs-mount on
+sudo chkconfig zfs-share on
+sudo chkconfig zfs-zed on
+----
+
+For EL 7 only:
+
+[source,shell]
+----
+sudo systemctl enable zfs-import-cache.service
+sudo systemctl enable zfs-import-scan.service
+sudo systemctl enable zfs-mount.service
+sudo systemctl enable zfs-share.service
+sudo systemctl enable zfs-zed.service
+sudo systemctl enable zfs.target
+----
+
+Create a tablespace and create a database inside of it:
+
+[source,sql]
+----
+CREATE TABLESPACE compressed LOCATION '/var/lib/pgsql/compressed';
+CREATE DATABASE sys_syn_compressed WITH TABLESPACE=compressed;
+----
+
+You can view the compressed size, compression ratio, and uncompressed size with:
+
+[source,shell]
+----
+sudo df -h /var/lib/pgsql/compressed
+sudo zfs get compressratio var-lib-pgsql-compressed
+sudo du -h -s --apparent-size /var/lib/pgsql/compressed
+----
 
 
 

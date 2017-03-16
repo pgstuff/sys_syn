@@ -1,7 +1,7 @@
 SET client_min_messages = warning;
 
 CREATE SCHEMA sys_syn;
-ALTER SCHEMA sys_syn OWNER TO postgres;
+COMMENT ON SCHEMA sys_syn IS '';
 
 DO $$BEGIN
         IF EXISTS (SELECT FROM pg_catalog.pg_extension WHERE extname = 'varint') THEN
@@ -9,7 +9,7 @@ DO $$BEGIN
         ELSE
                 CREATE DOMAIN sys_syn.trans_id AS bigint;
         END IF;
-        ALTER DOMAIN sys_syn.trans_id OWNER TO postgres;
+        COMMENT ON DOMAIN sys_syn.trans_id IS '';
 END$$;
 
 DO $$BEGIN
@@ -27,7 +27,7 @@ CREATE TYPE sys_syn.trans_id_method AS ENUM (
         'seq',
         'txid'
 );
-ALTER TYPE sys_syn.trans_id_method OWNER TO postgres;
+COMMENT ON TYPE sys_syn.trans_id_method IS 'Transaction ID method';
 
 CREATE TYPE sys_syn.in_column_type AS ENUM (
         'Id',
@@ -35,7 +35,7 @@ CREATE TYPE sys_syn.in_column_type AS ENUM (
         'NoDiff',
         'TransIdIn'
 );
-ALTER TYPE sys_syn.in_column_type OWNER TO postgres;
+COMMENT ON TYPE sys_syn.in_column_type IS '';
 
 CREATE TYPE sys_syn.create_in_column AS (
         column_name             text,
@@ -48,14 +48,14 @@ CREATE TYPE sys_syn.create_in_column AS (
         primary_column_name     text,
         "collation"             name
 );
-ALTER TYPE sys_syn.create_in_column OWNER TO postgres;
+COMMENT ON TYPE sys_syn.create_in_column IS '';
 
 CREATE TYPE sys_syn.delta_type AS ENUM (
         'Add',
         'Change',
         'Delete'
 );
-ALTER TYPE sys_syn.delta_type OWNER TO postgres;
+COMMENT ON TYPE sys_syn.delta_type IS '';
 
 CREATE TYPE sys_syn.queue_state AS ENUM (
         'Unclaimed',
@@ -63,7 +63,7 @@ CREATE TYPE sys_syn.queue_state AS ENUM (
         'Processed',
         'Hold'
 );
-ALTER TYPE sys_syn.queue_state OWNER TO postgres;
+COMMENT ON TYPE sys_syn.queue_state IS '';
 
 -- Queue columns that can be directly updated by the queue consumer.
 CREATE TYPE sys_syn.queue_column AS ENUM (
@@ -74,7 +74,7 @@ CREATE TYPE sys_syn.queue_column AS ENUM (
         'hold_reason_text',
         'processed_time'
 );
-ALTER TYPE sys_syn.queue_column OWNER TO postgres;
+COMMENT ON TYPE sys_syn.queue_column IS '';
 
 CREATE TYPE sys_syn.create_out_column AS (
         column_name             text,
@@ -83,22 +83,28 @@ CREATE TYPE sys_syn.create_out_column AS (
         queue_column_expression text,
         in_column_type          sys_syn.in_column_type
 );
-ALTER TYPE sys_syn.create_out_column OWNER TO postgres;
+COMMENT ON TYPE sys_syn.create_out_column IS '';
 
 CREATE TYPE sys_syn.create_in_partition AS (
         node_id         text,
         tablespace      name
 );
-ALTER TYPE sys_syn.create_in_partition OWNER TO postgres;
+COMMENT ON TYPE sys_syn.create_in_partition IS '';
 
 CREATE TYPE sys_syn.create_out_partition AS (
         notification_channel text
 );
-ALTER TYPE sys_syn.create_out_partition OWNER TO postgres;
+COMMENT ON TYPE sys_syn.create_out_partition IS '';
+
+CREATE TYPE sys_syn.key_violation_handler AS ENUM (
+        'none',
+        'delete_keep_last_ctid'
+);
+COMMENT ON TYPE sys_syn.key_violation_handler IS '';
 
 
 CREATE SEQUENCE sys_syn.trans_id_seq;
-ALTER TABLE sys_syn.trans_id_seq OWNER TO postgres;
+COMMENT ON SEQUENCE sys_syn.trans_id_seq IS '';
 
 
 CREATE SEQUENCE sys_syn.lock_id_seq
@@ -107,7 +113,7 @@ CREATE SEQUENCE sys_syn.lock_id_seq
         NO MINVALUE
         NO MAXVALUE
         CACHE 1;
-ALTER TABLE sys_syn.lock_id_seq OWNER TO postgres;
+COMMENT ON SEQUENCE sys_syn.lock_id_seq IS '';
 
 
 -- NOTE:  Using sys_syn.trans_id_method seq requires sys_syn.in_trans_*_start calls for queue processors.
@@ -117,7 +123,7 @@ CREATE TABLE sys_syn.settings (
         cluster_id                      text                    NOT NULL,
         comments                        text                    NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.settings OWNER TO postgres;
+COMMENT ON TABLE sys_syn.settings IS '';
 CREATE UNIQUE INDEX settings_1_row_idx
         ON sys_syn.settings
         USING btree
@@ -131,7 +137,7 @@ CREATE TABLE sys_syn.foreign_keys_for_c_sql (
         foreign_column_name     text    NOT NULL,
         primary_column_name     text    NOT NULL
 );
-ALTER TABLE sys_syn.foreign_keys_for_c_sql OWNER TO postgres;
+COMMENT ON TABLE sys_syn.foreign_keys_for_c_sql IS '';
 ALTER TABLE ONLY sys_syn.foreign_keys_for_c_sql
         ADD CONSTRAINT foreign_keys_for_c_sql_pkey
                 PRIMARY KEY (foreign_key_id, foreign_in_table_id, foreign_column_name);
@@ -142,7 +148,7 @@ CREATE TABLE sys_syn.prepulls_def (
         schema          regnamespace    NOT NULL,
         comments        text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.prepulls_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.prepulls_def IS '';
 ALTER TABLE ONLY sys_syn.prepulls_def
         ADD CONSTRAINT prepulls_def_pkey PRIMARY KEY (prepull_id);
 
@@ -152,7 +158,7 @@ CREATE TABLE sys_syn.in_groups_def (
         in_column_transform_rule_group_ids text[] DEFAULT NULL::text[],
         comments                text NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_groups_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_groups_def IS '';
 ALTER TABLE ONLY sys_syn.in_groups_def
         ADD CONSTRAINT in_groups_def_pkey PRIMARY KEY (in_group_id);
 ALTER TABLE sys_syn.in_groups_def
@@ -184,7 +190,7 @@ CREATE TABLE sys_syn.in_column_transforms (
         final_rule              boolean NOT NULL DEFAULT FALSE,
         comments                text    NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_column_transforms OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_column_transforms IS '';
 ALTER TABLE sys_syn.in_column_transforms
         ADD CONSTRAINT priority_disallow_sign CHECK (priority >= 0);
 CREATE UNIQUE INDEX ON sys_syn.in_column_transforms (
@@ -198,7 +204,7 @@ CREATE TABLE sys_syn.in_pulls_def (
         pull_post_sql   text,
         comments        text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_pulls_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_pulls_def IS '';
 ALTER TABLE ONLY sys_syn.in_pulls_def ALTER COLUMN lock_id SET DEFAULT nextval('sys_syn.lock_id_seq'::regclass);
 ALTER TABLE ONLY sys_syn.in_pulls_def
         ADD CONSTRAINT in_pulls_def_pkey PRIMARY KEY (in_pull_id);
@@ -214,7 +220,7 @@ BEGIN
         RETURN NULL;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_column_name_to_in_column_type(in_table_id text, column_name name) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_column_name_to_in_column_type(in_table_id text, column_name name) IS '';
 
 CREATE TABLE sys_syn.in_tables_def (
         in_table_id             text            NOT NULL,
@@ -234,12 +240,13 @@ CREATE TABLE sys_syn.in_tables_def (
         full_post_sql           text,
         changes_post_sql        text,
         enable_deletes_implied  boolean         NOT NULL DEFAULT TRUE,
+        key_violation_handler   sys_syn.key_violation_handler NOT NULL DEFAULT 'none'::sys_syn.key_violation_handler,
         record_comparison_different     text,
         record_comparison_same          text,
         tablespace              name,
         comments                text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_tables_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_tables_def IS '';
 ALTER TABLE ONLY sys_syn.in_tables_def
         ADD CONSTRAINT in_tables_def_pkey PRIMARY KEY (in_table_id);
 ALTER TABLE ONLY sys_syn.in_tables_def
@@ -267,7 +274,7 @@ CREATE TABLE sys_syn.in_columns_def (
         in_column_type          sys_syn.in_column_type,
         comments                text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_columns_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_columns_def IS '';
 ALTER TABLE ONLY sys_syn.in_columns_def
         ADD CONSTRAINT in_columns_def_pkey PRIMARY KEY (in_table_id, column_name);
 ALTER TABLE sys_syn.in_columns_def
@@ -290,7 +297,7 @@ CREATE TABLE sys_syn.in_partitions_def (
         tablespace              name,
         comments                text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_partitions_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_partitions_def IS '';
 ALTER TABLE ONLY sys_syn.in_partitions_def
         ADD CONSTRAINT in_partitions_def_pkey PRIMARY KEY (in_table_id, partition_id);
 ALTER TABLE sys_syn.in_partitions_def
@@ -305,7 +312,7 @@ CREATE TABLE sys_syn.in_foreign_keys (
         primary_column_name     text    NOT NULL,
         foreign_column_name     text    NOT NULL
 );
-ALTER TABLE sys_syn.in_foreign_keys OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_foreign_keys IS '';
 ALTER TABLE ONLY sys_syn.in_foreign_keys
         ADD CONSTRAINT in_foreign_keys_pkey
                 PRIMARY KEY (foreign_in_table_id, foreign_key_index, foreign_column_name);
@@ -323,7 +330,7 @@ CREATE TABLE sys_syn.in_pulls_request (
         in_pull_id              text    NOT NULL,
         request_full            boolean NOT NULL
 );
-ALTER TABLE sys_syn.in_pulls_request OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_pulls_request IS '';
 ALTER TABLE ONLY sys_syn.in_pulls_request
         ADD CONSTRAINT in_pulls_request_pkey PRIMARY KEY (in_pull_request_id);
 ALTER TABLE ONLY sys_syn.in_pulls_request
@@ -335,7 +342,7 @@ CREATE SEQUENCE sys_syn.in_pulls_request_in_pull_request_id_seq
         NO MINVALUE
         NO MAXVALUE
         CACHE 1;
-ALTER TABLE sys_syn.in_pulls_request_in_pull_request_id_seq OWNER TO postgres;
+COMMENT ON SEQUENCE sys_syn.in_pulls_request_in_pull_request_id_seq IS '';
 ALTER SEQUENCE sys_syn.in_pulls_request_in_pull_request_id_seq OWNED BY sys_syn.in_pulls_request.in_pull_request_id;
 ALTER TABLE ONLY sys_syn.in_pulls_request ALTER COLUMN in_pull_request_id
         SET DEFAULT nextval('sys_syn.in_pulls_request_in_pull_request_id_seq'::regclass);
@@ -347,7 +354,7 @@ CREATE TABLE sys_syn.in_pulls_state (
         last_pull_start         timestamp with time zone,
         last_pull_finish        timestamp with time zone
 );
-ALTER TABLE sys_syn.in_pulls_state OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_pulls_state IS '';
 ALTER TABLE ONLY sys_syn.in_pulls_state
         ADD CONSTRAINT in_pulls_state_pkey PRIMARY KEY (in_pull_id);
 ALTER TABLE ONLY sys_syn.in_pulls_state
@@ -362,7 +369,7 @@ CREATE TABLE sys_syn.in_trans_log (
         trans_time      timestamp with time zone DEFAULT now() NOT NULL,
         finish_time     timestamp with time zone
 );
-ALTER TABLE sys_syn.in_trans_log OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_trans_log IS '';
 ALTER TABLE ONLY sys_syn.in_trans_log
         ADD CONSTRAINT in_trans_log_pkey PRIMARY KEY (trans_id_in);
 
@@ -372,7 +379,7 @@ CREATE TABLE sys_syn.out_groups_def (
         out_column_transform_rule_group_ids     text[],
         comments                                text    NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.out_groups_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.out_groups_def IS '';
 ALTER TABLE ONLY sys_syn.out_groups_def
         ADD CONSTRAINT out_groups_def_pkey PRIMARY KEY (out_group_id);
 ALTER TABLE sys_syn.out_groups_def
@@ -399,7 +406,7 @@ CREATE TABLE sys_syn.out_tables_def (
         record_comparison_same          text,
         comments                text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.out_tables_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.out_tables_def IS '';
 ALTER TABLE ONLY sys_syn.out_tables_def
         ADD CONSTRAINT out_tables_def_pkey PRIMARY KEY (in_table_id, out_group_id);
 ALTER TABLE ONLY sys_syn.out_tables_def
@@ -417,7 +424,7 @@ CREATE TABLE sys_syn.out_partitions_def (
         notification_channel    text,
         comments                text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.out_partitions_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.out_partitions_def IS '';
 ALTER TABLE ONLY sys_syn.out_partitions_def
         ADD CONSTRAINT out_partitions_def_pkey PRIMARY KEY (in_table_id, out_group_id, partition_id);
 ALTER TABLE ONLY sys_syn.out_partitions_def
@@ -437,7 +444,7 @@ CREATE TABLE sys_syn.out_partitions_state (
         partition_id            smallint        NOT NULL,
         trans_id_in_latest      sys_syn.trans_id DEFAULT 0
 );
-ALTER TABLE sys_syn.out_partitions_state OWNER TO postgres;
+COMMENT ON TABLE sys_syn.out_partitions_state IS '';
 ALTER TABLE ONLY sys_syn.out_partitions_state
         ADD CONSTRAINT out_partitions_state_pkey PRIMARY KEY (in_table_id, out_group_id, partition_id);
 ALTER TABLE ONLY sys_syn.out_partitions_state
@@ -448,7 +455,7 @@ ALTER TABLE ONLY sys_syn.out_partitions_state
 CREATE TABLE sys_syn.trans_id_mod (
         trans_id_mod sys_syn.trans_id NOT NULL
 );
-ALTER TABLE sys_syn.trans_id_mod OWNER TO postgres;
+COMMENT ON TABLE sys_syn.trans_id_mod IS '';
 
 CREATE TABLE sys_syn.out_view_columns_def (
         in_table_id             text            NOT NULL,
@@ -460,7 +467,7 @@ CREATE TABLE sys_syn.out_view_columns_def (
         queue_column_expression text,
         in_column_type          sys_syn.in_column_type
 );
-ALTER TABLE sys_syn.out_view_columns_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.out_view_columns_def IS '';
 ALTER TABLE ONLY sys_syn.out_view_columns_def
         ADD CONSTRAINT out_view_columns_def_pkey PRIMARY KEY (in_table_id, out_group_id, column_name);
 ALTER TABLE ONLY sys_syn.out_view_columns_def
@@ -487,7 +494,7 @@ CREATE TABLE sys_syn.out_column_transforms (
         final_rule              boolean NOT NULL DEFAULT FALSE,
         comments                text    NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.out_column_transforms OWNER TO postgres;
+COMMENT ON TABLE sys_syn.out_column_transforms IS '';
 ALTER TABLE sys_syn.out_column_transforms
         ADD CONSTRAINT priority_disallow_sign CHECK (priority >= 0);
 CREATE UNIQUE INDEX ON sys_syn.out_column_transforms (
@@ -497,7 +504,7 @@ CREATE TABLE sys_syn.in_pull_sequences_def (
         in_pull_sequence_id     text    NOT NULL,
         comments                text    NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_pull_sequences_def OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_pull_sequences_def IS '';
 ALTER TABLE ONLY sys_syn.in_pull_sequences_def
         ADD CONSTRAINT in_pull_sequences_def_pkey PRIMARY KEY (in_pull_sequence_id);
 
@@ -507,7 +514,7 @@ CREATE TABLE sys_syn.in_pull_sequence_pulls (
         in_pull_id              text            NOT NULL,
         comments                text            NOT NULL DEFAULT ''
 );
-ALTER TABLE sys_syn.in_pull_sequence_pulls OWNER TO postgres;
+COMMENT ON TABLE sys_syn.in_pull_sequence_pulls IS '';
 ALTER TABLE ONLY sys_syn.in_pull_sequence_pulls
         ADD CONSTRAINT in_pull_sequence_pulls_pkey PRIMARY KEY (in_pull_sequence_id, in_pull_id);
 ALTER TABLE ONLY sys_syn.in_pull_sequence_pulls
@@ -518,6 +525,28 @@ ALTER TABLE ONLY sys_syn.in_pull_sequence_pulls
                 REFERENCES sys_syn.in_pulls_def (in_pull_id) MATCH SIMPLE ON UPDATE RESTRICT ON DELETE RESTRICT;
 ALTER TABLE sys_syn.in_pull_sequence_pulls
         ADD CONSTRAINT sequence_index_disallow_sign CHECK (sequence_index >= 0);
+
+CREATE TABLE sys_syn.exclude_reasons (
+        exclude_reason_id       int             NOT NULL,
+        exclude_code            text            NOT NULL,
+--      include_in_data_view    boolean         NOT NULL DEFAULT FALSE,
+        comments                text            NOT NULL DEFAULT ''
+);
+COMMENT ON TABLE sys_syn.exclude_reasons IS '';
+ALTER TABLE ONLY sys_syn.exclude_reasons
+        ADD CONSTRAINT exclude_reasons_pkey PRIMARY KEY (exclude_reason_id);
+CREATE UNIQUE INDEX ON sys_syn.exclude_reasons (exclude_code);
+
+CREATE TABLE sys_syn.include_reasons (
+        include_reason_id       int             NOT NULL,
+        include_code            text            NOT NULL,
+--      include_in_data_view    boolean         NOT NULL DEFAULT FALSE,
+        comments                text            NOT NULL DEFAULT ''
+);
+COMMENT ON TABLE sys_syn.include_reasons IS '';
+ALTER TABLE ONLY sys_syn.include_reasons
+        ADD CONSTRAINT include_reasons_pkey PRIMARY KEY (include_reason_id);
+CREATE UNIQUE INDEX ON sys_syn.include_reasons (include_code);
 
 -- Transforms priority:
 --  50 Change data type due to database technology
@@ -800,6 +829,11 @@ VALUES ('sys_syn-informix',     100,            '{timestamp_infinity}', 'timesta
                 $$WHEN %1 >= '9999-12-31 23:59:59.99999'::timestamp without time zone $$ ||
                 $$THEN 'infinity'::timestamp without time zone ELSE %1 END$$);
 
+INSERT INTO sys_syn.exclude_reasons(
+        exclude_reason_id,      exclude_code)
+VALUES (1,                      'sys_syn-key_violation');
+
+
 CREATE FUNCTION sys_syn.in_column_transforms_check_new () RETURNS TRIGGER AS $$
 BEGIN
         IF NEW.rule_group_id LIKE 'sys_syn%' THEN
@@ -809,7 +843,7 @@ BEGIN
         RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-ALTER FUNCTION sys_syn.in_column_transforms_check_new() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_column_transforms_check_new() IS '';
 
 CREATE FUNCTION sys_syn.in_column_transforms_check_old () RETURNS TRIGGER AS $$
 BEGIN
@@ -820,7 +854,7 @@ BEGIN
         RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-ALTER FUNCTION sys_syn.in_column_transforms_check_old() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_column_transforms_check_old() IS '';
 
 CREATE CONSTRAINT TRIGGER in_column_transforms_check_new
         AFTER INSERT OR UPDATE ON sys_syn.in_column_transforms
@@ -841,7 +875,7 @@ BEGIN
         RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-ALTER FUNCTION sys_syn.out_column_transforms_check_new() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.out_column_transforms_check_new() IS '';
 
 CREATE FUNCTION sys_syn.out_column_transforms_check_old () RETURNS TRIGGER AS $$
 BEGIN
@@ -852,7 +886,7 @@ BEGIN
         RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-ALTER FUNCTION sys_syn.out_column_transforms_check_old() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.out_column_transforms_check_old() IS '';
 
 CREATE CONSTRAINT TRIGGER out_column_transforms_check_new
         AFTER INSERT OR UPDATE ON sys_syn.out_column_transforms
@@ -863,6 +897,82 @@ CREATE CONSTRAINT TRIGGER out_column_transforms_check_old
         AFTER DELETE ON sys_syn.out_column_transforms
         DEFERRABLE INITIALLY DEFERRED
         FOR EACH ROW EXECUTE PROCEDURE sys_syn.out_column_transforms_check_old();
+
+CREATE FUNCTION sys_syn.exclude_reasons_check_new () RETURNS TRIGGER AS $$
+BEGIN
+        IF NEW.exclude_code LIKE 'sys_syn%' THEN
+                RAISE EXCEPTION 'Exclude reason codes starting with sys_syn are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a exclude_code that does not begin with sys_syn.';
+        ELSIF NEW.exclude_reason_id <= 1000 THEN
+                RAISE EXCEPTION 'exclude_reason_ids at and below 1000 are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a exclude_reason_ids above 1000.';
+        END IF;
+        RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION sys_syn.exclude_reasons_check_new() IS '';
+
+CREATE FUNCTION sys_syn.exclude_reasons_check_old () RETURNS TRIGGER AS $$
+BEGIN
+        IF OLD.exclude_code LIKE 'sys_syn%' THEN
+                RAISE EXCEPTION 'Exclude reason codes starting with sys_syn are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a exclude_code that does not begin with sys_syn.';
+        ELSIF NEW.exclude_reason_id <= 1000 THEN
+                RAISE EXCEPTION 'exclude_reason_ids at and below 1000 are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a exclude_reason_ids above 1000.';
+        END IF;
+        RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION sys_syn.exclude_reasons_check_old() IS '';
+
+CREATE CONSTRAINT TRIGGER exclude_reasons_check_new
+        AFTER INSERT OR UPDATE ON sys_syn.exclude_reasons
+        DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE PROCEDURE sys_syn.exclude_reasons_check_new();
+
+CREATE CONSTRAINT TRIGGER exclude_reasons_check_old
+        AFTER DELETE ON sys_syn.exclude_reasons
+        DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE PROCEDURE sys_syn.exclude_reasons_check_old();
+
+CREATE FUNCTION sys_syn.include_reasons_check_new () RETURNS TRIGGER AS $$
+BEGIN
+        IF NEW.include_code LIKE 'sys_syn%' THEN
+                RAISE EXCEPTION 'include reason codes starting with sys_syn are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a include_code that does not begin with sys_syn.';
+        ELSIF NEW.include_reason_id <= 1000 THEN
+                RAISE EXCEPTION 'include_reason_ids at and below 1000 are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a include_reason_ids above 1000.';
+        END IF;
+        RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION sys_syn.include_reasons_check_new() IS '';
+
+CREATE FUNCTION sys_syn.include_reasons_check_old () RETURNS TRIGGER AS $$
+BEGIN
+        IF OLD.include_code LIKE 'sys_syn%' THEN
+                RAISE EXCEPTION 'include reason codes starting with sys_syn are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a include_code that does not begin with sys_syn.';
+        ELSIF NEW.include_reason_id <= 1000 THEN
+                RAISE EXCEPTION 'include_reason_ids at and below 1000 are reserved for the sys_syn extension.'
+                USING HINT = 'Choose a include_reason_ids above 1000.';
+        END IF;
+        RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION sys_syn.include_reasons_check_old() IS '';
+
+CREATE CONSTRAINT TRIGGER include_reasons_check_new
+        AFTER INSERT OR UPDATE ON sys_syn.include_reasons
+        DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE PROCEDURE sys_syn.include_reasons_check_new();
+
+CREATE CONSTRAINT TRIGGER include_reasons_check_old
+        AFTER DELETE ON sys_syn.include_reasons
+        DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE PROCEDURE sys_syn.include_reasons_check_old();
 
 
 
@@ -911,7 +1021,7 @@ BEGIN
                 substr(_hash, 21, 12));
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.gen_pseudorandom_uuid(text) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.gen_pseudorandom_uuid(text) IS '';
 ALTER TABLE ONLY sys_syn.settings ALTER COLUMN cluster_id
         SET DEFAULT sys_syn.gen_pseudorandom_uuid('sys_syn');
 
@@ -928,7 +1038,7 @@ BEGIN
         RETURN '"' || replace(raw_value, '"', '\"') || '"';
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.quote_array_value(text) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.quote_array_value(text) IS '';
 
 CREATE FUNCTION sys_syn.quote_nullable (array_values text[])
         RETURNS text[]
@@ -940,7 +1050,7 @@ BEGIN
                 FROM    unnest(array_values));
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.quote_nullable(array_values text[]) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.quote_nullable(array_values text[]) IS '';
 
 CREATE FUNCTION sys_syn.quote_array_to_text (array_values text[], delimiter text)
         RETURNS text
@@ -951,7 +1061,7 @@ BEGIN
         RETURN array_to_string(sys_syn.quote_nullable(array_values), delimiter);
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.quote_array_to_text(array_values text[], delimiter text) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.quote_array_to_text(array_values text[], delimiter text) IS '';
 
 CREATE FUNCTION sys_syn.array_to_sql (array_values text[])
         RETURNS text
@@ -962,7 +1072,7 @@ BEGIN
         RETURN 'ARRAY[' || sys_syn.quote_array_to_string(array_values, ',') || ']::text[]';
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.array_to_sql(array_values text[]) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.array_to_sql(array_values text[]) IS '';
 
 CREATE FUNCTION sys_syn.distribute_load (range_seconds int) RETURNS void
         LANGUAGE plpgsql
@@ -972,7 +1082,7 @@ BEGIN
         PERFORM pg_sleep(range_seconds / 3 + floor(random() * range_seconds / 3));
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.distribute_load(int) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.distribute_load(int) IS '';
 
 CREATE FUNCTION sys_syn.random_sleep (range_seconds int) RETURNS void
         LANGUAGE plpgsql
@@ -982,7 +1092,7 @@ BEGIN
         PERFORM pg_sleep(floor(random() * range_seconds));
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.random_sleep(range_seconds int) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.random_sleep(range_seconds int) IS '';
 
 CREATE FUNCTION sys_syn.node_id_local_get ()
         RETURNS text
@@ -1012,7 +1122,7 @@ BEGIN
         RETURN '';
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.node_id_local_get() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.node_id_local_get() IS '';
 
 CREATE FUNCTION sys_syn.util_table_create_run_state ()
         RETURNS text
@@ -1028,7 +1138,7 @@ BEGIN
         RETURN 'CREATE UNLOGGED TABLE ';
 END;
 $BODY$;
-ALTER FUNCTION sys_syn.util_table_create_run_state() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_table_create_run_state() IS '';
 
 CREATE FUNCTION sys_syn.in_table_create (
         schema                  regnamespace,
@@ -1045,6 +1155,7 @@ CREATE FUNCTION sys_syn.in_table_create (
         full_post_sql           text    DEFAULT NULL,
         changes_post_sql        text    DEFAULT NULL,
         enable_deletes_implied  boolean DEFAULT TRUE,
+        key_violation_handler   sys_syn.key_violation_handler DEFAULT 'none'::sys_syn.key_violation_handler,
         full_prepull_id         text    DEFAULT NULL,
         changes_prepull_id      text    DEFAULT NULL,
         record_comparison_different text DEFAULT NULL,
@@ -1110,7 +1221,8 @@ BEGIN
                 full_sql,                       changes_sql,
                 full_pre_sql,                   changes_pre_sql,
                 full_post_sql,                  changes_post_sql,
-                enable_deletes_implied, record_comparison_different,    record_comparison_same)
+                enable_deletes_implied,         key_violation_handler,
+                record_comparison_different,    record_comparison_same)
         VALUES (
                 schema,         in_table_id,    in_group_id,    _in_pull_id,    _attributes_array,
                 (SELECT COALESCE(MAX(in_pull_order), 0) + 1 FROM sys_syn.in_tables_def
@@ -1120,7 +1232,8 @@ BEGIN
                 full_sql,                       changes_sql,
                 full_pre_sql,                   changes_pre_sql,
                 full_post_sql,                  changes_post_sql,
-                enable_deletes_implied, record_comparison_different,    record_comparison_same);
+                enable_deletes_implied,         key_violation_handler,
+                record_comparison_different,    record_comparison_same);
 
         _in_table_def := (
                 SELECT  in_tables_def
@@ -1220,7 +1333,15 @@ BEGIN
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ' (
-        id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL
+        id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
+        exclude_reason_id int NOT NULL
+);';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include') || ' (
+        id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
+        include_reason_id int NOT NULL
 );';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
@@ -1269,6 +1390,17 @@ $TRIG$ LANGUAGE plpgsql;$$;
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
+        _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_include_insert')||
+                $$() RETURNS TRIGGER AS $TRIG$
+BEGIN
+        INSERT INTO $$ || schema::text || '.' || quote_ident(in_table_id||'_include_1') || $$ VALUES (new.*);
+        SET LOCAL sys_syn.pull_found_records = 1;
+        RETURN NULL;
+END;
+$TRIG$ LANGUAGE plpgsql;$$;
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
         _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_in_insert')||'
     BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_in') || '
     FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_in_insert') || '();';
@@ -1278,6 +1410,12 @@ $TRIG$ LANGUAGE plpgsql;$$;
         _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_exclude_insert')||'
     BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || '
     FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude_insert') || '();';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_include_insert')||'
+    BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_include') || '
+    FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_include_insert') || '();';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1295,6 +1433,15 @@ _sql_buffer := 'CREATE RULE '||quote_ident(in_table_id||'_exclude_insert_rule')|
         TRUE
 DO INSTEAD
         INSERT INTO ' || schema::text || '.' || quote_ident(in_table_id||'_exclude_1') || ' VALUES (NEW.*);
+';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+_sql_buffer := 'CREATE RULE '||quote_ident(in_table_id||'_include_insert_rule')||' AS
+        ON INSERT TO ' || schema::text || '.' || quote_ident(in_table_id||'_include') || ' WHERE
+        TRUE
+DO INSTEAD
+        INSERT INTO ' || schema::text || '.' || quote_ident(in_table_id||'_include_1') || ' VALUES (NEW.*);
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;*/
@@ -1345,7 +1492,7 @@ DO INSTEAD
         );
 END;
 $_$;
-ALTER FUNCTION sys_syn.in_table_create(
+COMMENT ON FUNCTION sys_syn.in_table_create(
         schema                  regnamespace,
         in_table_id             text,
         in_group_id             text,
@@ -1360,11 +1507,12 @@ ALTER FUNCTION sys_syn.in_table_create(
         full_post_sql           text,
         changes_post_sql        text,
         enable_deletes_implied  boolean,
+        key_violation_handler   sys_syn.key_violation_handler,
         full_prepull_id         text,
         changes_prepull_id      text,
         record_comparison_different     text,
         record_comparison_same          text,
-        in_partitions           sys_syn.create_in_partition[]) OWNER TO postgres;
+        in_partitions           sys_syn.create_in_partition[]) IS '';
 
 CREATE FUNCTION sys_syn.in_table_create_partition (
         schema                  regnamespace,
@@ -1404,30 +1552,50 @@ BEGIN
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_exclude'||_part_suffix) || '
-        ADD CONSTRAINT ' || quote_ident(in_table_id||'_exclude'||_part_suffix||'_pkey') || ' PRIMARY KEY (id);';
+        ADD CONSTRAINT ' || quote_ident(in_table_id||'_exclude'||_part_suffix||'_pkey') || ' PRIMARY KEY (id, exclude_reason_id);';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || ' (
+) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_include') || ');';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || '
+        ADD CONSTRAINT ' || quote_ident(in_table_id||'_include'||_part_suffix||'_pkey') || ' PRIMARY KEY (id, include_reason_id);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.in_table_create_partition(
+COMMENT ON FUNCTION sys_syn.in_table_create_partition(
         schema                  regnamespace,
         in_table_id             text,
         attributes_array        boolean,
-        partition_id            smallint) OWNER TO postgres;
+        partition_id            smallint) IS '';
 
 
 CREATE FUNCTION sys_syn.in_table_create_sql (
         relation                regclass,
         in_group_id             text,
         schema                  regnamespace DEFAULT NULL::regnamespace,
-        id_columns              name[] DEFAULT NULL::name[],
-        no_diff_columns         name[] DEFAULT NULL::name[],
-        omit_columns            name[] DEFAULT NULL::name[],
-        limit_to_columns        name[] DEFAULT NULL::name[],
-        full_prepull_id         text DEFAULT NULL::text,
-        changes_prepull_id      text DEFAULT NULL::text,
-        in_table_id             text DEFAULT NULL::text,
-        in_pull_id              text DEFAULT NULL::text,
+        id_columns              name[]  DEFAULT NULL::name[],
+        no_diff_columns         name[]  DEFAULT NULL::name[],
+        omit_columns            name[]  DEFAULT NULL::name[],
+        limit_to_columns        name[]  DEFAULT NULL::name[],
+        in_table_id             text    DEFAULT NULL::text,
+        in_pull_id              text    DEFAULT NULL::text,
+        full_sql                text    DEFAULT NULL,
+        changes_sql             text    DEFAULT NULL,
+        full_pre_sql            text    DEFAULT NULL,
+        changes_pre_sql         text    DEFAULT NULL,
+        full_post_sql           text    DEFAULT NULL,
+        changes_post_sql        text    DEFAULT NULL,
+        enable_deletes_implied  boolean DEFAULT TRUE,
+        key_violation_handler   sys_syn.key_violation_handler DEFAULT 'none'::sys_syn.key_violation_handler,
+        full_prepull_id         text    DEFAULT NULL,
+        changes_prepull_id      text    DEFAULT NULL,
+        record_comparison_different text DEFAULT NULL,
+        record_comparison_same  text    DEFAULT NULL,
         in_partition            sys_syn.create_in_partition DEFAULT NULL::sys_syn.create_in_partition,
         in_partition_count      smallint DEFAULT NULL::smallint,
         in_partitions           sys_syn.create_in_partition[] DEFAULT NULL::sys_syn.create_in_partition[]
@@ -1737,15 +1905,18 @@ $$;
                 ]::sys_syn.create_in_column[],
                 full_table_reference    => $$||quote_literal(in_table_create_sql.relation::text)||$$,
                 changes_table_reference => NULL,
-                full_sql                => NULL,
-                changes_sql             => NULL,
-                full_pre_sql            => NULL,
-                changes_pre_sql         => NULL,
-                full_post_sql           => NULL,
-                changes_post_sql        => NULL,
-                enable_deletes_implied  => TRUE,
+                full_sql                => $$||quote_nullable(full_sql)||$$,
+                changes_sql             => $$||quote_nullable(changes_sql)||$$,
+                full_pre_sql            => $$||quote_nullable(full_pre_sql)||$$,
+                changes_pre_sql         => $$||quote_nullable(changes_pre_sql)||$$,
+                full_post_sql           => $$||quote_nullable(full_post_sql)||$$,
+                changes_post_sql        => $$||quote_nullable(changes_post_sql)||$$,
+                enable_deletes_implied  => $$||quote_nullable(enable_deletes_implied)||$$,
+                key_violation_handler   => $$||quote_nullable(key_violation_handler)||$$::sys_syn.key_violation_handler,
                 full_prepull_id         => $$||quote_nullable(full_prepull_id)||$$,
                 changes_prepull_id      => $$||quote_nullable(changes_prepull_id)||$$,
+                record_comparison_different=>$$||quote_nullable(record_comparison_different)||$$,
+                record_comparison_same  => $$||quote_nullable(record_comparison_same)||$$,
                 in_partitions           => ARRAY[$$;
 
         _first_item = TRUE;
@@ -1771,7 +1942,7 @@ $$;
         RETURN _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.in_table_create_sql(
+COMMENT ON FUNCTION sys_syn.in_table_create_sql(
         relation                regclass,
         in_group_id             text,
         schema                  regnamespace,
@@ -1779,14 +1950,24 @@ ALTER FUNCTION sys_syn.in_table_create_sql(
         no_diff_columns         name[],
         omit_columns            name[],
         limit_to_columns        name[],
-        full_prepull_id         text,
-        changes_prepull_id      text,
         in_table_id             text,
         in_pull_id              text,
+        full_sql                text,
+        changes_sql             text,
+        full_pre_sql            text,
+        changes_pre_sql         text,
+        full_post_sql           text,
+        changes_post_sql        text,
+        enable_deletes_implied  boolean,
+        key_violation_handler   sys_syn.key_violation_handler,
+        full_prepull_id         text,
+        changes_prepull_id      text,
+        record_comparison_different     text,
+        record_comparison_same          text,
         in_partition            sys_syn.create_in_partition,
         in_partition_count      smallint,
         in_partitions           sys_syn.create_in_partition[]
-        ) OWNER TO postgres;
+        ) IS '';
 
 CREATE FUNCTION sys_syn.in_table_columns_add_sql (
         in_table_id     text,
@@ -2074,8 +2255,8 @@ END;
 $BODY$
         LANGUAGE plpgsql VOLATILE
         COST 10;
-ALTER FUNCTION sys_syn.in_table_columns_add_sql(text, regclass, name[], name[], name[], name[])
-        OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_table_columns_add_sql(text, regclass, name[], name[], name[], name[])
+        IS '';
 
 CREATE FUNCTION sys_syn.in_table_columns_add (
         in_table_id text,
@@ -2257,8 +2438,8 @@ END;
 $BODY$
         LANGUAGE plpgsql VOLATILE
         COST 10;
-ALTER FUNCTION sys_syn.in_table_columns_add(text, sys_syn.create_in_column[])
-        OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_table_columns_add(text, sys_syn.create_in_column[])
+        IS '';
 
 CREATE FUNCTION sys_syn.in_trans_finish () RETURNS void
     LANGUAGE plpgsql COST 500
@@ -2269,7 +2450,7 @@ BEGIN
         WHERE   in_trans_log.trans_id_in = sys_syn.trans_id_get();
 END;
 $_$;
-ALTER FUNCTION sys_syn.in_trans_finish() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_trans_finish() IS '';
 
 CREATE FUNCTION sys_syn.in_trans_prepull_start (
         changes_only    boolean)
@@ -2311,7 +2492,7 @@ BEGIN
         );
 END;
 $$;
-ALTER FUNCTION sys_syn.in_trans_prepull_start(changes_only boolean) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_trans_prepull_start(changes_only boolean) IS '';
 
 CREATE FUNCTION sys_syn.in_trans_pull_start (
         changes_only    boolean,
@@ -2359,7 +2540,7 @@ BEGIN
         SET SESSION sys_syn.pull_found_records = 0;
 END;
 $$;
-ALTER FUNCTION sys_syn.in_trans_pull_start(changes_only boolean, in_table_ids text[]) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_trans_pull_start(changes_only boolean, in_table_ids text[]) IS '';
 
 CREATE FUNCTION sys_syn.in_trans_move_start ()
         RETURNS void
@@ -2392,7 +2573,7 @@ BEGIN
         END IF;
 END;
 $$;
-ALTER FUNCTION sys_syn.in_trans_move_start() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_trans_move_start() IS '';
 
 CREATE FUNCTION sys_syn.in_trans_claim_start ()
         RETURNS void
@@ -2425,7 +2606,7 @@ BEGIN
         END IF;
 END;
 $$;
-ALTER FUNCTION sys_syn.in_trans_claim_start() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_trans_claim_start() IS '';
 
 CREATE FUNCTION sys_syn.out_table_create_sql (
         schema                  regnamespace,
@@ -2728,7 +2909,7 @@ $$;
         RETURN _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.out_table_create_sql(
+COMMENT ON FUNCTION sys_syn.out_table_create_sql(
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
@@ -2748,7 +2929,7 @@ ALTER FUNCTION sys_syn.out_table_create_sql(
         queue_pid_used_age      interval,
         record_comparison_different text,
         record_comparison_same  text
-) OWNER TO postgres;
+) IS '';
 
 CREATE FUNCTION sys_syn.out_table_create (
         schema                  regnamespace,
@@ -2785,6 +2966,7 @@ DECLARE
         _sql_name_table_queue           TEXT;
         _sql_name_table_baseline        TEXT;
         _sql_name_table_exclude         TEXT;
+        _sql_name_table_include         TEXT;
         _sql_name_table_log             TEXT;
         _sql_name_table_queue_pid       TEXT;
         _sql_buffer                     TEXT;
@@ -2883,7 +3065,16 @@ $BODY$
 
         _sql_name_table_exclude := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_exclude');
         _sql_buffer := 'CREATE TABLE '||_sql_name_table_exclude||' (
-        id '||_sql_name_type_in_id||' NOT NULL
+        id '||_sql_name_type_in_id||' NOT NULL,
+        exclude_reason_id int NOT NULL
+);';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_name_table_include := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_include');
+        _sql_buffer := 'CREATE TABLE '||_sql_name_table_include||' (
+        id '||_sql_name_type_in_id||' NOT NULL,
+        include_reason_id int NOT NULL
 );';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
@@ -2943,7 +3134,7 @@ $BODY$
         END LOOP;
 END;
 $_$;
-ALTER FUNCTION sys_syn.out_table_create(
+COMMENT ON FUNCTION sys_syn.out_table_create(
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
@@ -2961,7 +3152,7 @@ ALTER FUNCTION sys_syn.out_table_create(
         claim_random_sample     smallint,
         queue_pid_used_age      interval,
         record_comparison_different     text,
-        record_comparison_same          text) OWNER TO postgres;
+        record_comparison_same          text) IS '';
 
 CREATE FUNCTION sys_syn.out_partition_create (
         schema                  regnamespace,
@@ -2986,6 +3177,7 @@ DECLARE
         _sql_name_table_queue           TEXT;
         _sql_name_table_baseline        TEXT;
         _sql_name_table_exclude         TEXT;
+        _sql_name_table_include         TEXT;
         _sql_name_table_log             TEXT;
         _sql_name_table_queue_pid       TEXT;
         _sql_name_table_queue_bulk      TEXT;
@@ -3155,7 +3347,20 @@ $$;
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_exclude'||_part_suffix||'_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_exclude||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);';
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id, exclude_reason_id);';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_name_table_include := schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_include'||_part_suffix);
+        _sql_buffer := 'CREATE TABLE '||_sql_name_table_include||' (
+        id '||_sql_name_type_in_id||' NOT NULL
+) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_include') || ');';
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
+        _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_include'||_part_suffix||'_pkey');
+        _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_include||'
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id, include_reason_id);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -3234,12 +3439,12 @@ $$;
         PERFORM sys_syn.util_in_table_code(_in_table_def, partition_id);
 END;
 $_$;
-ALTER FUNCTION sys_syn.out_partition_create(
+COMMENT ON FUNCTION sys_syn.out_partition_create(
         schema                  regnamespace,
         in_table_id             text,
         out_group_id            text,
         out_columns             sys_syn.create_out_column[],
-        partition_id            smallint) OWNER TO postgres;
+        partition_id            smallint) IS '';
 
 
 CREATE FUNCTION sys_syn.trans_id_get () RETURNS sys_syn.trans_id
@@ -3272,7 +3477,7 @@ BEGIN
         END IF;
 END;
 $_$;
-ALTER FUNCTION sys_syn.trans_id_get() OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.trans_id_get() IS '';
 
 CREATE FUNCTION sys_syn.util_column_name_to_data_type (in_table_id text, column_name name) RETURNS text
         LANGUAGE plpgsql STABLE
@@ -3350,7 +3555,7 @@ BEGIN
         END IF;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_column_name_to_data_type(in_table_id text, column_name name) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_column_name_to_data_type(in_table_id text, column_name name) IS '';
 
 CREATE OR REPLACE FUNCTION sys_syn.util_column_name_to_in_column_type (in_table_id text, column_name name)
         RETURNS sys_syn.in_column_type
@@ -3429,7 +3634,7 @@ BEGIN
         END IF;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_column_name_to_in_column_type(in_table_id text, column_name name) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_column_name_to_in_column_type(in_table_id text, column_name name) IS '';
 
 CREATE FUNCTION sys_syn.util_in_column_type_to_column_name (in_column_type sys_syn.in_column_type) RETURNS text
         LANGUAGE plpgsql IMMUTABLE COST 10
@@ -3455,7 +3660,7 @@ BEGIN
         RETURN _column_name;
 END;
 $$;
-ALTER FUNCTION sys_syn.util_in_column_type_to_column_name(in_column_type sys_syn.in_column_type) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_in_column_type_to_column_name(in_column_type sys_syn.in_column_type) IS '';
 
 CREATE FUNCTION sys_syn.util_in_pulls_code (in_pull_def sys_syn.in_pulls_def) RETURNS void
         LANGUAGE plpgsql
@@ -3467,6 +3672,8 @@ DECLARE
         _in_column_def                  sys_syn.in_columns_def;
         _in_table_ident                 TEXT;
         _sql_buffer                     TEXT;
+        _sql_trans_id_in_cte            TEXT;
+        _sql_trans_id_in_from           TEXT;
         _partition                      TEXT;
         _first_column                   BOOLEAN;
         _trans_id_source_sql            TEXT;
@@ -3530,6 +3737,12 @@ $$;
 
                 _in_table_ident := _in_table_def.schema::text || '.' || quote_ident(_in_table_def.in_table_id||'_in');
 
+                _sql_trans_id_in_cte := $$
+                WITH trans_id_in_cte AS (
+                        SELECT sys_syn.trans_id_get()
+                )$$;
+                _sql_trans_id_in_from := $$trans_id_in_cte, $$;
+
                 IF EXISTS (
                         SELECT
                         FROM    sys_syn.in_columns_def
@@ -3538,9 +3751,11 @@ $$;
                                         in_columns_def.in_table_id,
                                         in_columns_def.column_name) = 'TransIdIn'::sys_syn.in_column_type
                         ) THEN
-                        _trans_id_source_sql := 'in_source.trans_id_in';
+                        _trans_id_source_sql    := 'in_source.trans_id_in';
+                        _sql_trans_id_in_cte    := '';
+                        _sql_trans_id_in_from   := '';
                 ELSE
-                        _trans_id_source_sql := 'sys_syn.trans_id_get()';
+                        _trans_id_source_sql    := 'trans_id_in_cte.trans_id_get';
                 END IF;
 
                 IF _in_table_def.changes_pre_sql IS NOT NULL THEN
@@ -3553,7 +3768,7 @@ $$;
 
                         IF _in_table_def.attributes_array THEN
 
-                                _sql_buffer := _sql_buffer || $$
+                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -3655,7 +3870,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$)
-                FROM    $$||_in_table_def.changes_table_reference||$$ AS in_source
+                FROM    $$ || _sql_trans_id_in_from || _in_table_def.changes_table_reference || $$ AS in_source
                 GROUP BY 1$$;
 
                                 FOR     _in_column_def IN
@@ -3679,7 +3894,7 @@ $$;
 $$;
 
                         ELSE
-                                _sql_buffer := _sql_buffer || $$
+                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -3719,7 +3934,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$
-                FROM    $$||_in_table_def.changes_table_reference||$$ AS in_source;
+                FROM    $$ || _sql_trans_id_in_from || _in_table_def.changes_table_reference || $$ AS in_source;
                 IF FOUND THEN _possible_changes := TRUE; END IF;
 $$;
                         END IF;
@@ -3769,11 +3984,27 @@ $$ || _in_table_def.full_pre_sql || $$
 $$;
                 END IF;
 
+                IF _in_table_def.key_violation_handler = 'delete_keep_last_ctid'::sys_syn.key_violation_handler THEN
+                        _sql_buffer := _sql_buffer || $$
+        DELETE FROM $$ || _in_table_def.full_table_reference || $$ AS in_source_delete
+        WHERE EXISTS (
+                SELECT
+                FROM    $$ || _in_table_def.full_table_reference || $$ AS in_source_select
+                WHERE   $$ || sys_syn.util_in_columns_format_join(_in_table_def.in_table_id,
+                                'in_source_select', 'in_source_delete', 'Id'::sys_syn.in_column_type,
+        '%VALUE_EXPRESSION_LEFT% IS NOT DISTINCT FROM %VALUE_EXPRESSION_RIGHT% AND
+                        ', '') || sys_syn.util_in_columns_format_join(_in_table_def.in_table_id,
+                                'in_source_select', 'in_source_delete', 'Attribute'::sys_syn.in_column_type,
+        '%VALUE_EXPRESSION_LEFT% IS NOT DISTINCT FROM %VALUE_EXPRESSION_RIGHT% AND
+                        ', '', TRUE) || $$in_source_select.ctid > in_source_delete.ctid);
+$$;
+                END IF;
+
                 IF _in_table_def.full_table_reference IS NOT NULL THEN
 
                         IF _in_table_def.attributes_array THEN
 
-                                _sql_buffer := _sql_buffer || $$
+                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -3875,7 +4106,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$)
-                FROM    $$||_in_table_def.full_table_reference||$$ AS in_source
+                FROM    $$ || _sql_trans_id_in_from || _in_table_def.full_table_reference || $$ AS in_source
                 GROUP BY 1$$;
 
                                 FOR     _in_column_def IN
@@ -3899,7 +4130,7 @@ $$;
 $$;
 
                         ELSE
-                                _sql_buffer := _sql_buffer || $$
+                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -3942,7 +4173,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$
-                FROM    $$||_in_table_def.full_table_reference||$$ AS in_source;
+                FROM    $$ || _sql_trans_id_in_from || _in_table_def.full_table_reference || $$ AS in_source;
                 IF FOUND THEN _possible_changes := TRUE; END IF;
 $$;
                         END IF;
@@ -4013,7 +4244,7 @@ $$;
         EXECUTE _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_in_pulls_code(in_pull_def sys_syn.in_pulls_def) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_in_pulls_code(in_pull_def sys_syn.in_pulls_def) IS '';
 
 CREATE FUNCTION sys_syn.util_in_table_code (
         in_table_def    sys_syn.in_tables_def,
@@ -4189,9 +4420,9 @@ $$;
         EXECUTE _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_in_table_code(
+COMMENT ON FUNCTION sys_syn.util_in_table_code(
         in_table_def    sys_syn.in_tables_def,
-        partition_id    smallint) OWNER TO postgres;
+        partition_id    smallint) IS '';
 
 CREATE FUNCTION sys_syn.util_in_table_code (
         in_table_id     text) RETURNS void
@@ -4293,10 +4524,47 @@ $TRIG$ LANGUAGE plpgsql;$$;
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
+        _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
+                quote_ident(_in_table_def.in_table_id||'_include_insert')||$$()
+        RETURNS TRIGGER AS $TRIG$
+DECLARE
+        _hash integer;
+BEGIN
+        _hash := get_byte(decode(md5(new.id::text), 'hex'), 0) % $$||_partition_count||$$;
+        $$;
+
+        _partition_index := 0;
+        FOR     _in_partition_def IN
+        SELECT  *
+        FROM    sys_syn.in_partitions_def
+        WHERE   in_partitions_def.in_table_id = util_in_table_code.in_table_id
+        ORDER BY in_partitions_def.partition_id
+        LOOP
+                IF _partition_index != 0 THEN
+                        _sql_buffer := _sql_buffer || 'ELS';
+                END IF;
+
+                _sql_buffer := _sql_buffer || 'IF _hash = '||_partition_index||' THEN
+                INSERT INTO '||_in_table_def.schema::text||'.'||
+                quote_ident(_in_table_def.in_table_id||'_include_'||_in_partition_def.partition_id)||' VALUES (new.*);
+        ';
+
+                _partition_index := _partition_index + 1;
+        END LOOP;
+
+        _sql_buffer := _sql_buffer || $$END IF;
+
+        SET LOCAL sys_syn.pull_found_records = 1;
+        RETURN NULL;
+END;
+$TRIG$ LANGUAGE plpgsql;$$;
+        RAISE DEBUG '%', _sql_buffer;
+        EXECUTE _sql_buffer;
+
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_in_table_code(
-        in_table_id     text) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_in_table_code(
+        in_table_id     text) IS '';
 
 CREATE FUNCTION sys_syn.util_out_tables_for_pro_for_tab_cols_code (
         out_table_def           sys_syn.out_tables_def,
@@ -4355,10 +4623,10 @@ END;
 $BODY$
         LANGUAGE plpgsql VOLATILE
         COST 100;
-ALTER FUNCTION sys_syn.util_out_tables_for_pro_for_tab_cols_code(
+COMMENT ON FUNCTION sys_syn.util_out_tables_for_pro_for_tab_cols_code(
         out_table_def           sys_syn.out_tables_def,
         primary_in_table_id     text,
-        partition_id            smallint) OWNER TO postgres;
+        partition_id            smallint) IS '';
 
 CREATE FUNCTION sys_syn.util_out_tables_for_pro_for_tabs_cols_code (
         out_table_def   sys_syn.out_tables_def,
@@ -4394,15 +4662,16 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
-ALTER FUNCTION sys_syn.util_out_tables_for_pro_for_tabs_cols_code(
+COMMENT ON FUNCTION sys_syn.util_out_tables_for_pro_for_tabs_cols_code(
         out_table_def   sys_syn.out_tables_def,
-        partition_id    smallint) OWNER TO postgres;
+        partition_id    smallint) IS '';
 
 CREATE FUNCTION sys_syn.util_in_columns_format (
-        in_table_id     text,
-        in_column_type  sys_syn.in_column_type,
-        format_text     text,
-        column_delimiter text)
+        in_table_id             text,
+        in_column_type          sys_syn.in_column_type,
+        format_text             text,
+        column_delimiter        text,
+        is_array_order          boolean DEFAULT NULL)
   RETURNS text AS
 $BODY$
 DECLARE
@@ -4411,6 +4680,7 @@ DECLARE
         _in_column_type_name    TEXT;
         _column_name            TEXT;
         _format_type            TEXT;
+        _in_column_def          sys_syn.in_columns_def%ROWTYPE;
         _sql_buffer             TEXT := '';
 BEGIN
         _in_table_def := (
@@ -4442,12 +4712,25 @@ BEGIN
                 NOT pg_attribute.attisdropped
         ORDER BY pg_attribute.attnum
         LOOP
+                _in_column_def := (
+                        SELECT  in_columns_def
+                        FROM    sys_syn.in_columns_def
+                        WHERE   in_columns_def.in_table_id = _in_table_def.in_table_id AND
+                                in_columns_def.column_name = _column_name);
+
+                IF is_array_order IS NOT NULL THEN
+                        IF is_array_order = (_in_column_def.array_order IS NULL) THEN
+                                CONTINUE;
+                        END IF;
+                END IF;
+
                 IF _sql_buffer != '' THEN
                         _sql_buffer := _sql_buffer || column_delimiter;
                 END IF;
 
-                _sql_buffer := _sql_buffer || REPLACE(
-                        REPLACE(util_in_columns_format.format_text, '%FORMAT_TYPE%', _format_type),
+                _sql_buffer := _sql_buffer || REPLACE(REPLACE(REPLACE(
+                        util_in_columns_format.format_text, '%VALUE_EXPRESSION%', _in_column_def.source_in_expression),
+                        '%FORMAT_TYPE%', _format_type),
                         '%COLUMN_NAME%', quote_ident(_column_name));
         END LOOP;
 
@@ -4460,9 +4743,98 @@ END
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
-ALTER FUNCTION sys_syn.util_in_columns_format(in_table_id text, in_column_type sys_syn.in_column_type, format_text text,
-        column_delimiter text)
-        OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.util_in_columns_format(in_table_id text, in_column_type sys_syn.in_column_type, format_text text,
+        column_delimiter text, is_array_order boolean)
+        IS '';
+
+CREATE FUNCTION sys_syn.util_in_columns_format_join (
+        in_table_id             text,
+        table_name_left         text,
+        table_name_right        text,
+        in_column_type          sys_syn.in_column_type,
+        format_text             text,
+        column_delimiter        text,
+        is_array_order          boolean DEFAULT NULL)
+  RETURNS text AS
+$BODY$
+DECLARE
+        _in_table_def           sys_syn.in_tables_def%ROWTYPE;
+        _in_table_schema        TEXT;
+        _in_column_type_name    TEXT;
+        _column_name            TEXT;
+        _format_type            TEXT;
+        _in_column_def          sys_syn.in_columns_def%ROWTYPE;
+        _sql_buffer             TEXT := '';
+        _value_expression_left  TEXT;
+        _value_expression_right TEXT;
+BEGIN
+        _in_table_def := (
+                SELECT  in_tables_def
+                FROM    sys_syn.in_tables_def
+                WHERE   in_tables_def.in_table_id = util_in_columns_format_join.in_table_id);
+
+        CASE in_column_type
+        WHEN 'Attribute'::sys_syn.in_column_type THEN
+                _in_column_type_name := _in_table_def.in_table_id||'_in_attributes';
+        WHEN 'Id'::sys_syn.in_column_type THEN
+                _in_column_type_name := _in_table_def.in_table_id||'_in_id';
+        WHEN 'NoDiff'::sys_syn.in_column_type THEN
+                _in_column_type_name := _in_table_def.in_table_id||'_in_no_diff';
+        ELSE
+                RAISE EXCEPTION 'sys_syn.util_in_column_format in_column_type invalid.';
+        END CASE;
+
+        FOR     _column_name,           _format_type IN
+        SELECT  pg_attribute.attname,   format_type(pg_attribute.atttypid, pg_attribute.atttypmod)
+        FROM    pg_catalog.pg_namespace JOIN
+                pg_catalog.pg_class ON
+                        pg_class.relnamespace = pg_namespace.oid JOIN
+                pg_catalog.pg_attribute ON
+                        (pg_attribute.attrelid = pg_class.oid)
+        WHERE   quote_ident(pg_namespace.nspname) = _in_table_def.schema::text AND
+                pg_class.relname = _in_column_type_name AND
+                pg_attribute.attnum > 0 AND
+                NOT pg_attribute.attisdropped
+        ORDER BY pg_attribute.attnum
+        LOOP
+                _in_column_def := (
+                        SELECT  in_columns_def
+                        FROM    sys_syn.in_columns_def
+                        WHERE   in_columns_def.in_table_id = _in_table_def.in_table_id AND
+                                in_columns_def.column_name = _column_name);
+
+                IF is_array_order IS NOT NULL THEN
+                        IF is_array_order = (_in_column_def.array_order IS NULL) THEN
+                                CONTINUE;
+                        END IF;
+                END IF;
+
+                IF _sql_buffer != '' THEN
+                        _sql_buffer := _sql_buffer || column_delimiter;
+                END IF;
+
+                _value_expression_left  := REPLACE(_in_column_def.source_in_expression, 'in_source.', table_name_left || '.');
+                _value_expression_right := REPLACE(_in_column_def.source_in_expression, 'in_source.', table_name_right || '.');
+
+                _sql_buffer := _sql_buffer || REPLACE(REPLACE(REPLACE(REPLACE(util_in_columns_format_join.format_text,
+                        '%VALUE_EXPRESSION_LEFT%',      _value_expression_left),
+                        '%VALUE_EXPRESSION_RIGHT%',     _value_expression_right),
+                        '%FORMAT_TYPE%',                _format_type),
+                        '%COLUMN_NAME%',                quote_ident(_column_name));
+        END LOOP;
+
+        IF _sql_buffer IS NULL THEN
+                RAISE EXCEPTION 'sys_syn.util_in_column_format SQL null.';
+        END IF;
+
+        RETURN _sql_buffer;
+END
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+COMMENT ON FUNCTION sys_syn.util_in_columns_format_join(in_table_id text, table_name_left text, table_name_right text,
+        in_column_type sys_syn.in_column_type, format_text text, column_delimiter text, is_array_order boolean)
+        IS '';
 
 CREATE FUNCTION sys_syn.util_out_table_view (
         out_table_def   sys_syn.out_tables_def,
@@ -4679,9 +5051,9 @@ CREATE RULE '||_sql_name_out_view_rule_update||' AS ON UPDATE TO '||_sql_name_ou
         EXECUTE _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_out_table_view(
+COMMENT ON FUNCTION sys_syn.util_out_table_view(
         out_table_def   sys_syn.out_tables_def,
-        partition_id    smallint) OWNER TO postgres;
+        partition_id    smallint) IS '';
 
 CREATE FUNCTION sys_syn.util_record_comparison_code (
         left_table_alias        text,
@@ -4740,11 +5112,11 @@ BEGIN
                 quote_ident(left_table_alias));
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_record_comparison_code(
+COMMENT ON FUNCTION sys_syn.util_record_comparison_code(
         left_table_alias        text,
         right_table_alias       text,
         out_table_def           sys_syn.out_tables_def,
-        attributes_different    boolean) OWNER TO postgres;
+        attributes_different    boolean) IS '';
 
 CREATE FUNCTION sys_syn.util_out_table_code (
         in_table_id     text,
@@ -4759,6 +5131,7 @@ DECLARE
         _in_table_id_literal            TEXT;
         _in_table_ident                 TEXT;
         _in_table_exclude_ident         TEXT;
+        _in_table_include_ident         TEXT;
         _out_group_id_literal           TEXT;
         _out_table_baseline_ident       TEXT;
         _out_table_locked_ident         TEXT;
@@ -4766,6 +5139,7 @@ DECLARE
         _out_table_queue_ident          TEXT;
         _out_table_temp_ident           TEXT;
         _out_table_exclude_ident        TEXT;
+        _out_table_include_ident        TEXT;
         _out_table_queue_bulk_ident     TEXT;
         _out_table_queue_pid_ident      TEXT;
         _out_table_log_ident            TEXT;
@@ -4799,6 +5173,8 @@ BEGIN
                 quote_ident(_in_table_def.in_table_id||'_in'||_part_suffix);
         _in_table_exclude_ident         := _in_table_def.schema::text || '.' ||
                 quote_ident(_in_table_def.in_table_id||'_exclude'||_part_suffix);
+        _in_table_include_ident         := _in_table_def.schema::text || '.' ||
+                quote_ident(_in_table_def.in_table_id||'_include'||_part_suffix);
         _out_group_id_literal           := quote_literal(_out_table_def.out_group_id);
         _out_table_baseline_ident       := _out_table_def.schema::text || '.' ||
                 quote_ident(_out_table_def.in_table_id || '_' || _out_table_def.out_group_id||'_baseline'||_part_suffix);
@@ -5779,10 +6155,10 @@ $$;
         END IF;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_out_table_code(
+COMMENT ON FUNCTION sys_syn.util_out_table_code(
         in_table_id     text,
         out_group_id    text,
-        partition_id    smallint) OWNER TO postgres;
+        partition_id    smallint) IS '';
 
 CREATE FUNCTION sys_syn.util_out_table_exists_code (
         out_table_def   sys_syn.out_tables_def,
@@ -5864,11 +6240,11 @@ $$ || _indent_sql || $$)$$;
         RETURN _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_out_table_exists_code(
+COMMENT ON FUNCTION sys_syn.util_out_table_exists_code(
         out_table_def   sys_syn.out_tables_def,
         code_indent     smallint,
         partition_id    smallint)
-        OWNER TO postgres;
+        IS '';
 
 CREATE FUNCTION sys_syn.util_out_tables_exists_code (
         in_table_def    sys_syn.in_tables_def,
@@ -5896,11 +6272,11 @@ BEGIN
         RETURN _sql_buffer;
 END;
 $$;
-ALTER FUNCTION sys_syn.util_out_tables_exists_code(
+COMMENT ON FUNCTION sys_syn.util_out_tables_exists_code(
         in_table_def    sys_syn.in_tables_def,
         code_indent     smallint,
         partition_id    smallint)
-        OWNER TO postgres;
+        IS '';
 
 CREATE FUNCTION sys_syn.util_out_tables_orphaned_code (
         out_table_def   sys_syn.out_tables_def,
@@ -6086,9 +6462,9 @@ BEGIN
         RETURN _sql_buffer;
 END;
 $_$;
-ALTER FUNCTION sys_syn.util_out_tables_orphaned_code(
+COMMENT ON FUNCTION sys_syn.util_out_tables_orphaned_code(
         out_table_def   sys_syn.out_tables_def,
-        partition_id    smallint) OWNER TO postgres;
+        partition_id    smallint) IS '';
 
 CREATE FUNCTION sys_syn.prepull_create_sql (
         relation                        regclass,
@@ -6198,7 +6574,7 @@ BEGIN
         ';
                         _sql_unlogged_insert := 'trans_id_in,
                 ';
-                        _sql_unlogged_select := 'sys_syn.trans_id_get(),
+                        _sql_unlogged_select := 'trans_id_in_cte.trans_id_get,
                 ';
                 ELSE
                         _sql_unlogged_table_def := _sql_unlogged_table_def || ',
@@ -6258,10 +6634,13 @@ BEGIN
 
         PERFORM sys_syn.in_trans_prepull_start(FALSE);
 
+        WITH trans_id_in_cte AS (
+                SELECT sys_syn.trans_id_get()
+        )
         INSERT INTO $$ || _name_unlogged_full || $$ (
                 $$ || _sql_unlogged_insert || $$)
         SELECT  $$ || _sql_unlogged_select || $$
-        FROM    $$ || _sql_from || from_after_sql || $$;
+        FROM    trans_id_in_cte, $$ || _sql_from || from_after_sql || $$;
         IF FOUND THEN _possible_changes := TRUE; END IF;
 
         PERFORM sys_syn.in_trans_finish();
@@ -6292,7 +6671,7 @@ $$;
         RETURN _return;
 END;
 $_$;
-ALTER FUNCTION sys_syn.prepull_create_sql(
+COMMENT ON FUNCTION sys_syn.prepull_create_sql(
         relation                regclass,
         in_group_id             text,
         in_pull_id              text,
@@ -6305,7 +6684,7 @@ ALTER FUNCTION sys_syn.prepull_create_sql(
         no_diff_columns         name[],
         omit_columns            name[],
         limit_to_columns        name[])
-        OWNER TO postgres;
+        IS '';
 
 CREATE FUNCTION sys_syn.in_pull_sequence_populate_assume (in_group_id text default null) RETURNS void
         LANGUAGE plpgsql COST 20
@@ -6331,7 +6710,7 @@ BEGIN
         ON CONFLICT DO NOTHING;
 END;
 $_$;
-ALTER FUNCTION sys_syn.in_pull_sequence_populate_assume(in_group_id text) OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_pull_sequence_populate_assume(in_group_id text) IS '';
 
 CREATE FUNCTION sys_syn.jobs_get_crontab (
         in_pull_sequence_id     text DEFAULT NULL,
@@ -6430,7 +6809,7 @@ BEGIN
         RETURN _return;
 END;
 $_$;
-ALTER FUNCTION sys_syn.jobs_get_crontab(
+COMMENT ON FUNCTION sys_syn.jobs_get_crontab(
         in_pull_sequence_id     text,
         pull_minute             text,
         pull_hour               text,
@@ -6441,7 +6820,7 @@ ALTER FUNCTION sys_syn.jobs_get_crontab(
         processed_hour          text,
         processed_day_of_month  text,
         processed_months        text,
-        processed_day_of_week   text) OWNER TO postgres;
+        processed_day_of_week   text) IS '';
 
 CREATE FUNCTION sys_syn.jobs_get_pgagent (
         in_pull_sequence_id     text DEFAULT NULL,
@@ -6786,7 +7165,7 @@ WHERE   jobid = $$ || _sql_job_id_in || $$ OR
 COMMIT;$$;
 END;
 $_$;
-ALTER FUNCTION sys_syn.jobs_get_pgagent(
+COMMENT ON FUNCTION sys_syn.jobs_get_pgagent(
         in_pull_sequence_id     text,
         delete_sql              boolean,
         create_sql              boolean,
@@ -6801,7 +7180,7 @@ ALTER FUNCTION sys_syn.jobs_get_pgagent(
         processed_day_of_month  boolean[],
         processed_months        boolean[],
         processed_day_of_week   boolean[])
-        OWNER TO postgres;
+        IS '';
 
 CREATE VIEW sys_syn.out_queue_data_view_columns_view AS
 SELECT  out_tables_def.in_table_id,
@@ -6833,7 +7212,7 @@ FROM    sys_syn.out_tables_def JOIN
                 in_columns_def.column_name = pg_attribute.attname
 WHERE   out_tables_def.data_view
 ORDER BY pg_attribute.attnum;
-ALTER TABLE sys_syn.out_queue_data_view_columns_view OWNER TO postgres;
+COMMENT ON VIEW sys_syn.out_queue_data_view_columns_view IS '';
 
 CREATE FUNCTION sys_syn.util_out_queue_data_view_columns_format (
         in_table_id     text,
@@ -6867,12 +7246,12 @@ END
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
-ALTER FUNCTION sys_syn.util_out_queue_data_view_columns_format(
+COMMENT ON FUNCTION sys_syn.util_out_queue_data_view_columns_format(
         in_table_id text,
         out_group_id text,
         in_column_type sys_syn.in_column_type,
         format_text text)
-        OWNER TO postgres;
+        IS '';
 
 CREATE FUNCTION sys_syn.out_table_drop (
         in_table_id     text,
@@ -6947,6 +7326,7 @@ BEGIN
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_pid'||_part_suffix);
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_bulk'||_part_suffix);
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_exclude'||_part_suffix);
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_include'||_part_suffix);
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_temp'||_part_suffix);
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue'||_part_suffix);
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_orphaned'||_part_suffix);
@@ -6965,8 +7345,8 @@ BEGIN
 END;
 $_$
         COST 40;
-ALTER FUNCTION sys_syn.out_table_drop(text, text, smallint)
-        OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.out_table_drop(text, text, smallint)
+        IS '';
 
 CREATE FUNCTION sys_syn.out_table_drop (
         in_table_id     text,
@@ -7015,6 +7395,7 @@ BEGIN
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_log');
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue_pid');
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_exclude');
+        EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_include');
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_queue');
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_orphaned');
         EXECUTE _sql_command_prefix || quote_ident(_sql_name_prefix||'_locked');
@@ -7027,8 +7408,8 @@ BEGIN
 END;
 $_$
         COST 40;
-ALTER FUNCTION sys_syn.out_table_drop(text, text)
-        OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.out_table_drop(text, text)
+        IS '';
 
 CREATE FUNCTION sys_syn.in_pull_drop (in_pull_id text)
   RETURNS void AS
@@ -7090,8 +7471,8 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 40;
-ALTER FUNCTION sys_syn.in_pull_drop(text)
-  OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_pull_drop(text)
+  IS '';
 
 CREATE FUNCTION sys_syn.in_table_drop (in_table_id text, cascade boolean default false)
   RETURNS void AS
@@ -7137,14 +7518,17 @@ BEGIN
         EXECUTE 'DROP TRIGGER '||quote_ident(_in_table_def.in_table_id||'_exclude_insert')||' ON '||_in_table_def.schema::text||
                 '.'||quote_ident(_in_table_def.in_table_id||'_exclude');
 
-        _sql_command_prefix := 'DROP FUNCTION ' || _in_table_def.schema::text || '.';
-        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_insert') || '()';
+        EXECUTE 'DROP TRIGGER '||quote_ident(_in_table_def.in_table_id||'_include_insert')||' ON '||_in_table_def.schema::text||
+                '.'||quote_ident(_in_table_def.in_table_id||'_include');
 
         _sql_command_prefix := 'DROP FUNCTION ' || _in_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_insert') || '()';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude_insert') || '()';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_include_insert') || '()';
 
         _sql_command_prefix := 'DROP TABLE '|| _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude');
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_include');
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in');
 
         _sql_command_prefix := 'DROP TYPE '|| _in_table_def.schema::text || '.';
@@ -7173,8 +7557,8 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 40;
-ALTER FUNCTION sys_syn.in_table_drop(text, boolean)
-  OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.in_table_drop(text, boolean)
+  IS '';
 
 CREATE FUNCTION sys_syn.in_table_drop_partition (
         in_table_id     text,
@@ -7205,15 +7589,16 @@ BEGIN
 
         _sql_command_prefix := 'DROP TABLE '|| _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude'||_part_suffix);
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_include'||_part_suffix);
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in'||_part_suffix);
 END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 40;
-ALTER FUNCTION sys_syn.in_table_drop_partition(
+COMMENT ON FUNCTION sys_syn.in_table_drop_partition(
         in_table_id     text,
         partition_id    smallint)
-  OWNER TO postgres;
+  IS '';
 
 CREATE FUNCTION sys_syn.prepull_drop (prepull_id text)
   RETURNS void AS
@@ -7246,8 +7631,8 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 40;
-ALTER FUNCTION sys_syn.prepull_drop(text)
-  OWNER TO postgres;
+COMMENT ON FUNCTION sys_syn.prepull_drop(text)
+  IS '';
 
 
 CREATE VIEW sys_syn.in_foreign_keys_view AS
@@ -7265,7 +7650,7 @@ SELECT  in_foreign_keys.primary_in_table_id,
         sys_syn.util_column_name_to_data_type(in_foreign_keys.foreign_in_table_id, (in_foreign_keys.foreign_column_name)::name)
                 AS foreign_column_data_type
 FROM    sys_syn.in_foreign_keys;
-ALTER TABLE sys_syn.in_foreign_keys_view OWNER TO postgres;
+COMMENT ON VIEW sys_syn.in_foreign_keys_view IS '';
 
 CREATE VIEW sys_syn.in_table_columns_view AS
 SELECT  in_columns_def.in_table_id,
@@ -7275,10 +7660,12 @@ SELECT  in_columns_def.in_table_id,
         sys_syn.util_column_name_to_data_type(in_columns_def.in_table_id, in_columns_def.column_name) AS data_type,
         in_columns_def.source_in_expression
 FROM    sys_syn.in_columns_def;
-ALTER TABLE sys_syn.in_table_columns_view OWNER TO postgres;
+COMMENT ON VIEW sys_syn.in_table_columns_view IS '';
 
 
+SELECT pg_catalog.pg_extension_config_dump('sys_syn.exclude_reasons', $$WHERE exclude_reason_id NOT LIKE 'sys_syn-%'$$);
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.foreign_keys_for_c_sql', '');
+SELECT pg_catalog.pg_extension_config_dump('sys_syn.include_reasons', $$WHERE include_reason_id NOT LIKE 'sys_syn-%'$$);
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_column_transforms', $$WHERE rule_group_id NOT LIKE 'sys_syn-%'$$);
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_foreign_keys', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_groups_def', '');

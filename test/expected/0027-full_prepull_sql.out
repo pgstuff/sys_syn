@@ -41,14 +41,17 @@ SELECT sys_syn.prepull_create_sql('user_data.test_table'::regclass, 'in');
                                                                                                       +
          PERFORM sys_syn.in_trans_prepull_start(FALSE);                                               +
                                                                                                       +
+         WITH trans_id_in_cte AS (                                                                    +
+                 SELECT sys_syn.trans_id_get()                                                        +
+         )                                                                                            +
          INSERT INTO user_data.test_table_prepull_full (                                              +
                  trans_id_in,                                                                         +
                  test_table_id,                                                                       +
                  test_table_text)                                                                     +
-         SELECT  sys_syn.trans_id_get(),                                                              +
+         SELECT  trans_id_in_cte.trans_id_get,                                                        +
                  test_table_id,                                                                       +
                  test_table_text                                                                      +
-         FROM    user_data.test_table;                                                                +
+         FROM    trans_id_in_cte, user_data.test_table;                                               +
          IF FOUND THEN _possible_changes := TRUE; END IF;                                             +
                                                                                                       +
          PERFORM sys_syn.in_trans_finish();                                                           +

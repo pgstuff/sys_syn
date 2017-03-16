@@ -3,6 +3,10 @@ BEGIN;
 CREATE EXTENSION tinyint SCHEMA public;
 CREATE EXTENSION sys_syn;
 
+INSERT INTO sys_syn.exclude_reasons(
+        exclude_reason_id,      exclude_code,           comments)
+VALUES (1001,                   'custom_exclude',       'Test');
+
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
@@ -23,13 +27,13 @@ VALUES (1,              'Exclude from in'),
        (2,              'Exclude from out'),
        (3,              'test_data');
 
-INSERT INTO user_data.test_table_exclude VALUES (ROW(1));
+INSERT INTO user_data.test_table_exclude VALUES (ROW(1), 1001);
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
 
 SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
 
-INSERT INTO user_data.test_table_out_exclude_1 VALUES (ROW(2));
+INSERT INTO user_data.test_table_out_exclude_1 VALUES (ROW(2), 1001);
 
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move_1();
