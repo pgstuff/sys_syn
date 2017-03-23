@@ -40,6 +40,7 @@ SELECT sys_syn.in_table_create_sql('user_data.parent_table'::regclass, 'in');
                  full_post_sql           => NULL,                                                          +
                  changes_post_sql        => NULL,                                                          +
                  enable_deletes_implied  => 'true',                                                        +
+                 null_key_handler        => 'none'::sys_syn.null_key_handler,                              +
                  key_violation_handler   => 'none'::sys_syn.key_violation_handler,                         +
                  full_prepull_id         => NULL,                                                          +
                  changes_prepull_id      => NULL,                                                          +
@@ -74,6 +75,7 @@ SELECT sys_syn.in_table_create_sql('user_data.child_table'::regclass, 'in');
                  full_post_sql           => NULL,                                                                                         +
                  changes_post_sql        => NULL,                                                                                         +
                  enable_deletes_implied  => 'true',                                                                                       +
+                 null_key_handler        => 'none'::sys_syn.null_key_handler,                                                             +
                  key_violation_handler   => 'none'::sys_syn.key_violation_handler,                                                        +
                  full_prepull_id         => NULL,                                                                                         +
                  changes_prepull_id      => NULL,                                                                                         +

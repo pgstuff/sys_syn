@@ -67,7 +67,7 @@ VALUES ('rename_et_dt_col_name',200,            '{}',                   'timesta
         null);
 
 INSERT INTO sys_syn.in_groups_def
-        (in_group_id,   parent_in_group_id,     in_column_transform_rule_group_ids)
+        (in_group_id,   parent_in_group_id,     rule_group_ids)
 VALUES  ('in',          NULL,                   ARRAY['convert_us_eastern','sys_syn-general']),
         ('in2',         'in',                   NULL),
         ('in3',         'in2',                  ARRAY['space_is_null','rename_et_dt_col_name']);

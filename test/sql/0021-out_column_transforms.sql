@@ -62,7 +62,7 @@ VALUES (NULL,                   101,            '{date_infinity}',      'date', 
         NULL,   NULL,                   FALSE);
 
 INSERT INTO sys_syn.out_groups_def (
-        out_group_id,   out_column_transform_rule_group_ids)
+        out_group_id,   rule_group_ids)
 VALUES ('out',          ARRAY['time_zone_us_eastern','sys_syn-mssql']);
 
 SELECT sys_syn.out_table_create_sql('user_data', 'test_table', 'out', omit_columns => ARRAY['sys_syn_hold_reason_text'], data_view => TRUE);

@@ -1,21 +1,15 @@
 BEGIN;
-
 CREATE EXTENSION tinyint SCHEMA public;
 CREATE EXTENSION sys_syn;
-
 CREATE SCHEMA user_data
     AUTHORIZATION postgres;
-
 CREATE TABLE user_data.test_table (
-        test_table_id integer NOT NULL,
+        test_table_id integer,
         test_table_text text);
-
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
-
 DO $$BEGIN
         EXECUTE sys_syn.prepull_create_sql('user_data.test_table'::regclass, 'in', id_columns => ARRAY['test_table_id']);
 END$$;
-
 DO $$BEGIN
         EXECUTE sys_syn.in_table_create_sql(
                 relation        => 'user_data.test_table_prepull_full'::regclass,
@@ -28,40 +22,50 @@ DO $$BEGIN
                 full_prepull_id => 'test_table',
                 changes_prepull_id=> NULL,
                 in_table_id     => 'test_table',
-                key_violation_handler => 'delete_keep_last_ctid'::sys_syn.key_violation_handler);
+                null_key_handler=> 'delete_row'::sys_syn.null_key_handler);
 END$$;
-
 INSERT INTO user_data.test_table(
         test_table_id, test_table_text)
 VALUES (1,              'test_data 1'),(
-        1,              'test_data 1'),(
-        2,              'test_data 2 first'),(
-        2,              'test_data 2 middle'),(
-        2,              'test_data 2 last'),(
+        NULL,           'test_data NULL'),(
         3,              'test_data 3');
-
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
-
 SELECT sys_syn.out_table_create('user_data', 'test_table', 'out');
+ out_table_create 
+------------------
+ 
+(1 row)
 
 SELECT user_data.test_table_prepull_full();
+ test_table_prepull_full 
+-------------------------
+ t
+(1 row)
+
 UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_syn.trans_id_curr TO 2;
 SELECT user_data.test_table_pull(FALSE);
+ test_table_pull 
+-----------------
+ t
+(1 row)
+
 SELECT user_data.test_table_out_move_1();
-
-
-
--- Exclude test_table_text if it fails in this test.  The last_ctid is not
--- guaranteed to be as accurate as a window function, but neither method will
--- be accurate if the incoming records are unordered.  So use the cheaper
--- method (ctid).
+ test_table_out_move_1 
+-----------------------
+ t
+(1 row)
 
 SELECT  (in_data.id).*,
         out_queue.delta_type,
         out_queue.queue_state,
-        (in_data.attributes).* -- Comment out this line if it no longer returns "test_data 2 last"
+        (in_data.attributes).*
 FROM    user_data.test_table_out_queue_1 out_queue
         LEFT JOIN user_data.test_table_in_1 AS in_data USING (trans_id_in, id)
 ORDER BY in_data.id;
+ test_table_id | delta_type | queue_state | test_table_text 
+---------------+------------+-------------+-----------------
+             1 | Add        | Unclaimed   | test_data 1
+             3 | Add        | Unclaimed   | test_data 3
+(2 rows)
 
 ROLLBACK;

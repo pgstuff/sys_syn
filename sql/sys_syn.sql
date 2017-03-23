@@ -96,6 +96,12 @@ CREATE TYPE sys_syn.create_out_partition AS (
 );
 COMMENT ON TYPE sys_syn.create_out_partition IS '';
 
+CREATE TYPE sys_syn.null_key_handler AS ENUM (
+        'none',
+        'delete_row'
+);
+COMMENT ON TYPE sys_syn.null_key_handler IS '';
+
 CREATE TYPE sys_syn.key_violation_handler AS ENUM (
         'none',
         'delete_keep_last_ctid'
@@ -155,7 +161,7 @@ ALTER TABLE ONLY sys_syn.prepulls_def
 CREATE TABLE sys_syn.in_groups_def (
         in_group_id             text NOT NULL,
         parent_in_group_id      text,
-        in_column_transform_rule_group_ids text[] DEFAULT NULL::text[],
+        rule_group_ids          text[] DEFAULT NULL::text[],
         comments                text NOT NULL DEFAULT ''
 );
 COMMENT ON TABLE sys_syn.in_groups_def IS '';
@@ -240,7 +246,8 @@ CREATE TABLE sys_syn.in_tables_def (
         full_post_sql           text,
         changes_post_sql        text,
         enable_deletes_implied  boolean         NOT NULL DEFAULT TRUE,
-        key_violation_handler   sys_syn.key_violation_handler NOT NULL DEFAULT 'none'::sys_syn.key_violation_handler,
+        null_key_handler        sys_syn.null_key_handler        NOT NULL DEFAULT 'none'::sys_syn.null_key_handler,
+        key_violation_handler   sys_syn.key_violation_handler   NOT NULL DEFAULT 'none'::sys_syn.key_violation_handler,
         record_comparison_different     text,
         record_comparison_same          text,
         tablespace              name,
@@ -374,10 +381,10 @@ ALTER TABLE ONLY sys_syn.in_trans_log
         ADD CONSTRAINT in_trans_log_pkey PRIMARY KEY (trans_id_in);
 
 CREATE TABLE sys_syn.out_groups_def (
-        out_group_id                            text    NOT NULL,
-        parent_out_group_id                     text,
-        out_column_transform_rule_group_ids     text[],
-        comments                                text    NOT NULL DEFAULT ''
+        out_group_id            text    NOT NULL,
+        parent_out_group_id     text,
+        rule_group_ids          text[],
+        comments                text    NOT NULL DEFAULT ''
 );
 COMMENT ON TABLE sys_syn.out_groups_def IS '';
 ALTER TABLE ONLY sys_syn.out_groups_def
@@ -525,6 +532,49 @@ ALTER TABLE ONLY sys_syn.in_pull_sequence_pulls
                 REFERENCES sys_syn.in_pulls_def (in_pull_id) MATCH SIMPLE ON UPDATE RESTRICT ON DELETE RESTRICT;
 ALTER TABLE sys_syn.in_pull_sequence_pulls
         ADD CONSTRAINT sequence_index_disallow_sign CHECK (sequence_index >= 0);
+
+CREATE TABLE sys_syn.in_table_transforms (
+        rule_group_id                   text,
+        priority                        smallint NOT NULL,
+        relation_name_like              text,
+        in_group_id_like                text,
+        schema_like                     text,
+        in_table_id_like                text,
+        in_pull_id_like                 text,
+        enable_deletes_implied          boolean,
+        null_key_handler                sys_syn.null_key_handler,
+        key_violation_handler           sys_syn.key_violation_handler,
+        full_prepull_id_like            text,
+        changes_prepull_id_like         text,
+        new_in_table_id                 text,
+        new_in_pull_id                  text,
+        new_full_sql                    text,
+        new_changes_sql                 text,
+        new_full_pre_sql                text,
+        new_changes_pre_sql             text,
+        new_full_post_sql               text,
+        new_changes_post_sql            text,
+        new_enable_deletes_implied      boolean,
+        new_null_key_handler            sys_syn.null_key_handler,
+        new_key_violation_handler       sys_syn.key_violation_handler,
+        new_full_prepull_id             text,
+        new_changes_prepull_id          text,
+        new_record_comparison_different text,
+        new_record_comparison_same      text,
+        new_in_partition                sys_syn.create_in_partition,
+        new_in_partition_count          smallint,
+        new_in_partitions               sys_syn.create_in_partition[],
+        omit                            boolean,
+        final_ids                       text[] DEFAULT '{}'::text[] NOT NULL,
+        final_rule                      boolean DEFAULT FALSE NOT NULL,
+        comments                        text DEFAULT '' NOT NULL
+);
+COMMENT ON TABLE sys_syn.in_table_transforms IS '';
+ALTER TABLE sys_syn.in_table_transforms
+        ADD CONSTRAINT priority_disallow_sign CHECK (priority >= 0);
+CREATE UNIQUE INDEX ON sys_syn.in_table_transforms (
+        priority, relation_name_like, in_group_id_like, schema_like, in_table_id_like, in_pull_id_like, enable_deletes_implied,
+        null_key_handler);
 
 CREATE TABLE sys_syn.exclude_reasons (
         exclude_reason_id       int             NOT NULL,
@@ -1155,7 +1205,8 @@ CREATE FUNCTION sys_syn.in_table_create (
         full_post_sql           text    DEFAULT NULL,
         changes_post_sql        text    DEFAULT NULL,
         enable_deletes_implied  boolean DEFAULT TRUE,
-        key_violation_handler   sys_syn.key_violation_handler DEFAULT 'none'::sys_syn.key_violation_handler,
+        null_key_handler        sys_syn.null_key_handler        DEFAULT 'none'::sys_syn.null_key_handler,
+        key_violation_handler   sys_syn.key_violation_handler   DEFAULT 'none'::sys_syn.key_violation_handler,
         full_prepull_id         text    DEFAULT NULL,
         changes_prepull_id      text    DEFAULT NULL,
         record_comparison_different text DEFAULT NULL,
@@ -1221,18 +1272,18 @@ BEGIN
                 full_sql,                       changes_sql,
                 full_pre_sql,                   changes_pre_sql,
                 full_post_sql,                  changes_post_sql,
-                enable_deletes_implied,         key_violation_handler,
+                enable_deletes_implied,         null_key_handler,       key_violation_handler,
                 record_comparison_different,    record_comparison_same)
         VALUES (
                 schema,         in_table_id,    in_group_id,    _in_pull_id,    _attributes_array,
                 (SELECT COALESCE(MAX(in_pull_order), 0) + 1 FROM sys_syn.in_tables_def
-                 WHERE in_tables_def.in_pull_id = in_table_create.in_group_id),
+                 WHERE in_tables_def.in_pull_id = in_table_create.in_pull_id),
                 full_prepull_id,                changes_prepull_id,
                 full_table_reference,           changes_table_reference,
                 full_sql,                       changes_sql,
                 full_pre_sql,                   changes_pre_sql,
                 full_post_sql,                  changes_post_sql,
-                enable_deletes_implied,         key_violation_handler,
+                enable_deletes_implied,         null_key_handler,       key_violation_handler,
                 record_comparison_different,    record_comparison_same);
 
         _in_table_def := (
@@ -1507,6 +1558,7 @@ COMMENT ON FUNCTION sys_syn.in_table_create(
         full_post_sql           text,
         changes_post_sql        text,
         enable_deletes_implied  boolean,
+        null_key_handler        sys_syn.null_key_handler,
         key_violation_handler   sys_syn.key_violation_handler,
         full_prepull_id         text,
         changes_prepull_id      text,
@@ -1591,7 +1643,8 @@ CREATE FUNCTION sys_syn.in_table_create_sql (
         full_post_sql           text    DEFAULT NULL,
         changes_post_sql        text    DEFAULT NULL,
         enable_deletes_implied  boolean DEFAULT TRUE,
-        key_violation_handler   sys_syn.key_violation_handler DEFAULT 'none'::sys_syn.key_violation_handler,
+        null_key_handler        sys_syn.null_key_handler        DEFAULT 'none'::sys_syn.null_key_handler,
+        key_violation_handler   sys_syn.key_violation_handler   DEFAULT 'none'::sys_syn.key_violation_handler,
         full_prepull_id         text    DEFAULT NULL,
         changes_prepull_id      text    DEFAULT NULL,
         record_comparison_different text DEFAULT NULL,
@@ -1605,7 +1658,25 @@ CREATE FUNCTION sys_syn.in_table_create_sql (
         AS $_$
 DECLARE
         _in_table_id            TEXT;
-        _in_column_transform_rule_group_ids text[];
+        _rule_group_ids         text[];
+        _in_pull_id             TEXT;
+        _full_sql               text;
+        _changes_sql            text;
+        _full_pre_sql           text;
+        _changes_pre_sql        text;
+        _full_post_sql          text;
+        _changes_post_sql       text;
+        _enable_deletes_implied boolean;
+        _null_key_handler       sys_syn.null_key_handler;
+        _key_violation_handler  sys_syn.key_violation_handler;
+        _full_prepull_id        text;
+        _changes_prepull_id     text;
+        _record_comparison_different text;
+        _record_comparison_same text;
+        _in_partition           sys_syn.create_in_partition;
+        _in_partition_count     smallint;
+        _in_partitions          sys_syn.create_in_partition[];
+        _in_table_transform     sys_syn.in_table_transforms%ROWTYPE;
         _sql_buffer             TEXT := NULL;
         _column                 pg_catalog.pg_attribute%ROWTYPE;
         _column_name            TEXT;
@@ -1623,7 +1694,6 @@ DECLARE
         _last_priority          smallint;
         _foreign_keys_for_c_sql sys_syn.foreign_keys_for_c_sql%ROWTYPE;
         _foreign_key_index      smallint;
-        _in_partitions          sys_syn.create_in_partition[];
         _create_in_partition    sys_syn.create_in_partition;
         _first_item             boolean;
 BEGIN
@@ -1638,38 +1708,195 @@ BEGIN
         FROM    pg_class
         WHERE   pg_class.oid = relation::oid;
 
-        IF in_partition_count IS NOT NULL THEN
+        _rule_group_ids := (
+                WITH RECURSIVE all_transform_rule_group_ids(parent_in_group_id, rule_group_ids) AS (
+                        SELECT  in_groups_def.parent_in_group_id,
+                                in_groups_def.rule_group_ids
+                        FROM    sys_syn.in_groups_def
+                        WHERE   in_groups_def.in_group_id = in_table_create_sql.in_group_id
+                        UNION ALL
+                        SELECT  in_groups_def.parent_in_group_id,
+                                in_groups_def.rule_group_ids ||
+                                        all_transform_rule_group_ids.rule_group_ids
+                        FROM    sys_syn.in_groups_def, all_transform_rule_group_ids
+                        WHERE   in_groups_def.in_group_id = all_transform_rule_group_ids.parent_in_group_id
+                )
+                SELECT  rule_group_ids
+                FROM    all_transform_rule_group_ids
+                WHERE   parent_in_group_id IS NULL
+        );
+
+        _final_ids                      := ARRAY[]::TEXT[];
+        _omit                           := FALSE;
+        _last_priority                  := -1;
+        _in_pull_id                     := in_pull_id;
+        _full_sql                       := full_sql;
+        _changes_sql                    := changes_sql;
+        _full_pre_sql                   := full_pre_sql;
+        _changes_pre_sql                := changes_pre_sql;
+        _full_post_sql                  := full_post_sql;
+        _changes_post_sql               := changes_post_sql;
+        _enable_deletes_implied         := enable_deletes_implied;
+        _null_key_handler               := null_key_handler;
+        _key_violation_handler          := key_violation_handler;
+        _full_prepull_id                := full_prepull_id;
+        _changes_prepull_id             := changes_prepull_id;
+        _record_comparison_different    := record_comparison_different;
+        _record_comparison_same         := record_comparison_same;
+        _in_partition                   := in_partition;
+        _in_partition_count             := in_partition_count;
+        _in_partitions                  := in_partitions;
+
+        FOR     _in_table_transform IN
+        SELECT  *
+        FROM    sys_syn.in_table_transforms
+        WHERE   (       in_table_transforms.rule_group_id IS NULL OR
+                        in_table_transforms.rule_group_id = ANY(_rule_group_ids)
+                )
+        ORDER BY in_table_transforms.priority
+        LOOP
+
+                IF      (_in_table_transform.relation_name_like         IS NULL OR
+                                relation::text                          LIKE _in_table_transform.relation_name_like) AND
+                        (_in_table_transform.in_group_id_like           IS NULL OR
+                                in_group_id                             LIKE _in_table_transform.in_group_id_like) AND
+                        (_in_table_transform.schema_like                IS NULL OR
+                                schema::text                            LIKE _in_table_transform.schema_like) AND
+                        (_in_table_transform.in_table_id_like           IS NULL OR
+                                _in_table_id                            LIKE _in_table_transform.in_table_id_like) AND
+                        (_in_table_transform.in_pull_id_like            IS NULL OR
+                                _in_pull_id                             LIKE _in_table_transform.in_pull_id_like) AND
+                        (_in_table_transform.enable_deletes_implied     IS NULL OR
+                                _enable_deletes_implied                 = _in_table_transform.enable_deletes_implied) AND
+                        (_in_table_transform.null_key_handler           IS NULL OR
+                                _null_key_handler                       = _in_table_transform.null_key_handler) AND
+                        (_in_table_transform.key_violation_handler      IS NULL OR
+                                _key_violation_handler                  = _in_table_transform.key_violation_handler) AND
+                        (_in_table_transform.full_prepull_id_like       IS NULL OR
+                                _full_prepull_id                        LIKE _in_table_transform.full_prepull_id_like) AND
+                        (_in_table_transform.changes_prepull_id_like    IS NULL OR
+                                _changes_prepull_id                     LIKE _in_table_transform.changes_prepull_id_like)
+                        THEN
+
+                        IF _in_table_transform.priority = _last_priority THEN
+                                RAISE EXCEPTION
+                                        'More than 1 rule meets the criteria of in_table_id ''%'' on the same priority (%).',
+                                        _in_table_id, _in_table_transform.priority
+                                USING HINT =
+        'Change one of the rule''s priority.  If multiple rules are activated on the same priority, the code may be indeterminate.';
+                        END IF;
+
+                        IF _final_ids && _in_table_transform.final_ids THEN
+                                CONTINUE;
+                        END IF;
+
+                        _final_ids := _final_ids || _in_table_transform.final_ids;
+                        _last_priority := _in_table_transform.priority;
+
+                        IF _in_table_transform.new_in_table_id IS NOT NULL THEN
+                                _in_table_id := replace(_in_table_transform.new_in_table_id, '%1',_in_table_id);
+                        END IF;
+
+                        IF _in_table_transform.new_in_pull_id IS NOT NULL THEN
+                                _in_pull_id := replace(_in_table_transform.new_in_pull_id, '%1',_in_pull_id);
+                        END IF;
+
+                        IF _in_table_transform.new_full_sql IS NOT NULL THEN
+                                _full_sql := replace(_in_table_transform.new_full_sql, '%1', _full_sql);
+                        END IF;
+
+                        IF _in_table_transform.new_changes_sql IS NOT NULL THEN
+                                _changes_sql := replace(_in_table_transform.new_changes_sql, '%1',_changes_sql);
+                        END IF;
+
+                        IF _in_table_transform.new_full_pre_sql IS NOT NULL THEN
+                                _full_pre_sql := replace(_in_table_transform.new_full_pre_sql, '%1',_full_pre_sql);
+                        END IF;
+
+                        IF _in_table_transform.new_changes_pre_sql IS NOT NULL THEN
+                                _changes_pre_sql := replace(_in_table_transform.new_changes_pre_sql, '%1',_changes_pre_sql);
+                        END IF;
+
+                        IF _in_table_transform.new_full_post_sql IS NOT NULL THEN
+                                _full_post_sql := replace(_in_table_transform.new_full_post_sql, '%1',_full_post_sql);
+                        END IF;
+
+                        IF _in_table_transform.new_changes_post_sql IS NOT NULL THEN
+                                _changes_post_sql := replace(_in_table_transform.new_changes_post_sql, '%1',_changes_post_sql);
+                        END IF;
+
+                        IF _in_table_transform.new_enable_deletes_implied IS NOT NULL THEN
+                                _enable_deletes_implied := _in_table_transform.new_enable_deletes_implied;
+                        END IF;
+
+                        IF _in_table_transform.new_null_key_handler IS NOT NULL THEN
+                                _null_key_handler := _in_table_transform.new_null_key_handler;
+                        END IF;
+
+                        IF _in_table_transform.new_key_violation_handler IS NOT NULL THEN
+                                _key_violation_handler := _in_table_transform.new_key_violation_handler;
+                        END IF;
+
+                        IF _in_table_transform.new_full_prepull_id IS NOT NULL THEN
+                                _full_prepull_id := replace(_in_table_transform.new_full_prepull_id, '%1',_full_prepull_id);
+                        END IF;
+
+                        IF _in_table_transform.new_changes_prepull_id IS NOT NULL THEN
+                                _changes_prepull_id := replace(_in_table_transform.new_changes_prepull_id,'%1',_changes_prepull_id);
+                        END IF;
+
+                        IF _in_table_transform.new_record_comparison_different IS NOT NULL THEN
+                                _record_comparison_different := replace(_in_table_transform.new_record_comparison_different,
+                                        '%1',_record_comparison_different);
+                        END IF;
+
+                        IF _in_table_transform.new_record_comparison_same IS NOT NULL THEN
+                                _record_comparison_same := replace(_in_table_transform.new_record_comparison_same,
+                                        '%1',_record_comparison_same);
+                        END IF;
+
+                        IF _in_table_transform.new_in_partition IS NOT NULL THEN
+                                _in_partition := _in_table_transform.new_in_partition;
+                        END IF;
+
+                        IF _in_table_transform.new_in_partition_count IS NOT NULL THEN
+                                _in_partition_count := _in_table_transform.new_in_partition_count;
+                        END IF;
+
+                        IF _in_table_transform.new_in_partitions IS NOT NULL THEN
+                                _in_partitions := _in_table_transform.new_in_partitions;
+                        END IF;
+
+                        IF _in_table_transform.omit IS NOT NULL THEN
+                                _omit := _in_table_transform.omit;
+                        END IF;
+
+                        IF _in_table_transform.final_rule THEN
+                                EXIT;
+                        END IF;
+
+                END IF;
+
+        END LOOP;
+
+        IF _omit THEN
+                RETURN '';
+        END IF;
+
+        IF _in_partition_count IS NOT NULL THEN
                 --SELECT  array_agg(COALESCE(in_partition, ('',NULL)::sys_syn.create_in_partition))
                 --INTO    _in_partitions
-                --FROM    generate_series(1, in_partition_count);
+                --FROM    generate_series(1, _in_partition_count);
                 IF in_partition IS NULL THEN
-                        _in_partitions := array_fill(('',NULL)::sys_syn.create_in_partition, ARRAY[in_partition_count]);
+                        _in_partitions := array_fill(('',NULL)::sys_syn.create_in_partition, ARRAY[_in_partition_count]);
                 ELSE
-                        _in_partitions := array_fill(in_partition, ARRAY[in_partition_count]);
+                        _in_partitions := array_fill(in_partition, ARRAY[_in_partition_count]);
                 END IF;
         ELSIF in_partitions IS NULL THEN
                 _in_partitions := ARRAY[('',NULL)]::sys_syn.create_in_partition[];
         ELSE
                 _in_partitions := in_partitions;
         END IF;
-
-        _in_column_transform_rule_group_ids := (
-                WITH RECURSIVE all_transform_rule_group_ids(parent_in_group_id, in_column_transform_rule_group_ids) AS (
-                        SELECT  in_groups_def.parent_in_group_id,
-                                in_groups_def.in_column_transform_rule_group_ids
-                        FROM    sys_syn.in_groups_def
-                        WHERE   in_groups_def.in_group_id = in_table_create_sql.in_group_id
-                        UNION ALL
-                        SELECT  in_groups_def.parent_in_group_id,
-                                in_groups_def.in_column_transform_rule_group_ids ||
-                                        all_transform_rule_group_ids.in_column_transform_rule_group_ids
-                        FROM    sys_syn.in_groups_def, all_transform_rule_group_ids
-                        WHERE   in_groups_def.in_group_id = all_transform_rule_group_ids.parent_in_group_id
-                )
-                SELECT  in_column_transform_rule_group_ids
-                FROM    all_transform_rule_group_ids
-                WHERE   parent_in_group_id IS NULL
-        );
 
         _primary_key := (
                 SELECT  pg_index.indkey
@@ -1680,8 +1907,8 @@ BEGIN
 
         CREATE TEMPORARY TABLE foreign_key_ids_temp (
                 foreign_key_id          text            NOT NULL,
-                foreign_key_index       smallint        NOT NULL
-        ) ON COMMIT DROP;
+                foreign_key_index       smallint        NOT NULL)
+        ON COMMIT DROP;
 
         FOR     _column IN
         SELECT  *
@@ -1696,7 +1923,7 @@ BEGIN
         ORDER BY pg_attribute.attnum
         LOOP
 
-                IF full_prepull_id IS NOT NULL AND _column.attname = 'trans_id_in' THEN
+                IF _full_prepull_id IS NOT NULL AND _column.attname = 'trans_id_in' THEN
                         _in_column_type := 'TransIdIn'::sys_syn.in_column_type;
                 ELSIF id_columns IS NOT NULL THEN
                         IF _column.attname = ANY(id_columns) THEN
@@ -1762,8 +1989,8 @@ BEGIN
                 SELECT  *
                 FROM    sys_syn.in_column_transforms
                 WHERE   (in_column_transforms.rule_group_id IS NULL OR
-                                (       _in_column_transform_rule_group_ids IS NOT NULL AND
-                                        in_column_transforms.rule_group_id = ANY(_in_column_transform_rule_group_ids)
+                                (       _rule_group_ids IS NOT NULL AND
+                                        in_column_transforms.rule_group_id = ANY(_rule_group_ids)
                                 )
                         ) AND
                         _in_column_type != 'TransIdIn'::sys_syn.in_column_type
@@ -1783,7 +2010,7 @@ BEGIN
                                 (_in_column_transform.in_group_id_like          IS NULL OR
                                         in_group_id                             LIKE _in_column_transform.in_group_id_like) AND
                                 (_in_column_transform.in_pull_id_like           IS NULL OR
-                                        in_pull_id                              LIKE _in_column_transform.in_pull_id_like) AND
+                                        _in_pull_id                             LIKE _in_column_transform.in_pull_id_like) AND
                                 (_in_column_transform.schema_like               IS NULL OR
                                         schema::text                            LIKE _in_column_transform.schema_like) AND
                                 (_in_column_transform.is_key                    IS NULL OR
@@ -1871,7 +2098,7 @@ BEGIN
                 )||$$,
                 in_table_id     => $$||quote_literal(_in_table_id)||$$,
                 in_group_id     => $$||quote_literal(in_group_id)||$$,
-                in_pull_id      => $$||quote_nullable(in_pull_id)||$$,
+                in_pull_id      => $$||quote_nullable(_in_pull_id)||$$,
                 in_columns      => ARRAY[
 $$;
                         ELSE
@@ -1905,18 +2132,19 @@ $$;
                 ]::sys_syn.create_in_column[],
                 full_table_reference    => $$||quote_literal(in_table_create_sql.relation::text)||$$,
                 changes_table_reference => NULL,
-                full_sql                => $$||quote_nullable(full_sql)||$$,
-                changes_sql             => $$||quote_nullable(changes_sql)||$$,
-                full_pre_sql            => $$||quote_nullable(full_pre_sql)||$$,
-                changes_pre_sql         => $$||quote_nullable(changes_pre_sql)||$$,
-                full_post_sql           => $$||quote_nullable(full_post_sql)||$$,
-                changes_post_sql        => $$||quote_nullable(changes_post_sql)||$$,
-                enable_deletes_implied  => $$||quote_nullable(enable_deletes_implied)||$$,
-                key_violation_handler   => $$||quote_nullable(key_violation_handler)||$$::sys_syn.key_violation_handler,
-                full_prepull_id         => $$||quote_nullable(full_prepull_id)||$$,
-                changes_prepull_id      => $$||quote_nullable(changes_prepull_id)||$$,
-                record_comparison_different=>$$||quote_nullable(record_comparison_different)||$$,
-                record_comparison_same  => $$||quote_nullable(record_comparison_same)||$$,
+                full_sql                => $$||quote_nullable(_full_sql)||$$,
+                changes_sql             => $$||quote_nullable(_changes_sql)||$$,
+                full_pre_sql            => $$||quote_nullable(_full_pre_sql)||$$,
+                changes_pre_sql         => $$||quote_nullable(_changes_pre_sql)||$$,
+                full_post_sql           => $$||quote_nullable(_full_post_sql)||$$,
+                changes_post_sql        => $$||quote_nullable(_changes_post_sql)||$$,
+                enable_deletes_implied  => $$||quote_nullable(_enable_deletes_implied)||$$,
+                null_key_handler        => $$||quote_nullable(_null_key_handler)||$$::sys_syn.null_key_handler,
+                key_violation_handler   => $$||quote_nullable(_key_violation_handler)||$$::sys_syn.key_violation_handler,
+                full_prepull_id         => $$||quote_nullable(_full_prepull_id)||$$,
+                changes_prepull_id      => $$||quote_nullable(_changes_prepull_id)||$$,
+                record_comparison_different=>$$||quote_nullable(_record_comparison_different)||$$,
+                record_comparison_same  => $$||quote_nullable(_record_comparison_same)||$$,
                 in_partitions           => ARRAY[$$;
 
         _first_item = TRUE;
@@ -1959,6 +2187,7 @@ COMMENT ON FUNCTION sys_syn.in_table_create_sql(
         full_post_sql           text,
         changes_post_sql        text,
         enable_deletes_implied  boolean,
+        null_key_handler        sys_syn.null_key_handler,
         key_violation_handler   sys_syn.key_violation_handler,
         full_prepull_id         text,
         changes_prepull_id      text,
@@ -1981,7 +2210,7 @@ $BODY$
 DECLARE
         _in_table_def           sys_syn.in_tables_def;
         _relation               regclass;
-        _in_column_transform_rule_group_ids text[];
+        _rule_group_ids         text[];
         _sql_buffer             TEXT;
         _column                 pg_catalog.pg_attribute%ROWTYPE;
         _column_name            TEXT;
@@ -2010,20 +2239,20 @@ BEGIN
                 _relation := _in_table_def.full_table_reference::regclass;
         END IF;
 
-        _in_column_transform_rule_group_ids := (
-                WITH RECURSIVE all_transform_rule_group_ids(parent_in_group_id, in_column_transform_rule_group_ids) AS (
+        _rule_group_ids := (
+                WITH RECURSIVE all_transform_rule_group_ids(parent_in_group_id, rule_group_ids) AS (
                         SELECT  in_groups_def.parent_in_group_id,
-                                in_groups_def.in_column_transform_rule_group_ids
+                                in_groups_def.rule_group_ids
                         FROM    sys_syn.in_groups_def
                         WHERE   in_groups_def.in_group_id = _in_table_def.in_group_id
                         UNION ALL
                         SELECT  in_groups_def.parent_in_group_id,
-                                in_groups_def.in_column_transform_rule_group_ids ||
-                                        all_transform_rule_group_ids.in_column_transform_rule_group_ids
+                                in_groups_def.rule_group_ids ||
+                                        all_transform_rule_group_ids.rule_group_ids
                         FROM    sys_syn.in_groups_def, all_transform_rule_group_ids
                         WHERE   in_groups_def.in_group_id = all_transform_rule_group_ids.parent_in_group_id
                 )
-                SELECT  in_column_transform_rule_group_ids
+                SELECT  rule_group_ids
                 FROM    all_transform_rule_group_ids
                 WHERE   parent_in_group_id IS NULL
         );
@@ -2037,8 +2266,8 @@ BEGIN
 
         CREATE TEMPORARY TABLE foreign_key_ids_temp (
                 foreign_key_id          text            NOT NULL,
-                foreign_key_index       smallint        NOT NULL
-        ) ON COMMIT DROP;
+                foreign_key_index       smallint        NOT NULL)
+        ON COMMIT DROP;
 
         FOR     _column IN
         SELECT  *
@@ -2118,8 +2347,8 @@ BEGIN
                 SELECT  *
                 FROM    sys_syn.in_column_transforms
                 WHERE   (in_column_transforms.rule_group_id IS NULL OR
-                                (       _in_column_transform_rule_group_ids IS NOT NULL AND
-                                        in_column_transforms.rule_group_id = ANY(_in_column_transform_rule_group_ids)
+                                (       _rule_group_ids IS NOT NULL AND
+                                        in_column_transforms.rule_group_id = ANY(_rule_group_ids)
                                 )
                         ) AND
                         _in_column_type != 'TransIdIn'::sys_syn.in_column_type
@@ -2633,7 +2862,7 @@ CREATE FUNCTION sys_syn.out_table_create_sql (
         AS $_$
 DECLARE
         _in_table_def           sys_syn.in_tables_def%ROWTYPE;
-        _out_column_transform_rule_group_ids text[];
+        _rule_group_ids         text[];
         _sql_buffer             TEXT;
         _in_column              sys_syn.in_columns_def%ROWTYPE;
         _data_type              TEXT;
@@ -2654,20 +2883,20 @@ BEGIN
                 FROM    sys_syn.in_tables_def
                 WHERE   in_tables_def.in_table_id = out_table_create_sql.in_table_id);
 
-        _out_column_transform_rule_group_ids := (
-                WITH RECURSIVE all_transform_rule_group_ids(parent_out_group_id, out_column_transform_rule_group_ids) AS (
+        _rule_group_ids := (
+                WITH RECURSIVE all_transform_rule_group_ids(parent_out_group_id, rule_group_ids) AS (
                         SELECT  out_groups_def.parent_out_group_id,
-                                out_groups_def.out_column_transform_rule_group_ids
+                                out_groups_def.rule_group_ids
                         FROM    sys_syn.out_groups_def
                         WHERE   out_groups_def.out_group_id = out_table_create_sql.out_group_id
                         UNION ALL
                         SELECT  out_groups_def.parent_out_group_id,
-                                out_groups_def.out_column_transform_rule_group_ids ||
-                                        all_transform_rule_group_ids.out_column_transform_rule_group_ids
+                                out_groups_def.rule_group_ids ||
+                                        all_transform_rule_group_ids.rule_group_ids
                         FROM    sys_syn.out_groups_def, all_transform_rule_group_ids
                         WHERE   out_groups_def.out_group_id = all_transform_rule_group_ids.parent_out_group_id
                 )
-                SELECT  out_column_transform_rule_group_ids
+                SELECT  rule_group_ids
                 FROM    all_transform_rule_group_ids
                 WHERE   parent_out_group_id IS NULL
         );
@@ -2760,8 +2989,8 @@ BEGIN
                 SELECT  *
                 FROM    sys_syn.out_column_transforms
                 WHERE   (out_column_transforms.rule_group_id IS NULL OR
-                                (       _out_column_transform_rule_group_ids IS NOT NULL AND
-                                        out_column_transforms.rule_group_id = ANY(_out_column_transform_rule_group_ids)
+                                (       _rule_group_ids IS NOT NULL AND
+                                        out_column_transforms.rule_group_id = ANY(_rule_group_ids)
                                 )
                         )
                 ORDER BY out_column_transforms.priority
@@ -3672,8 +3901,6 @@ DECLARE
         _in_column_def                  sys_syn.in_columns_def;
         _in_table_ident                 TEXT;
         _sql_buffer                     TEXT;
-        _sql_trans_id_in_cte            TEXT;
-        _sql_trans_id_in_from           TEXT;
         _partition                      TEXT;
         _first_column                   BOOLEAN;
         _trans_id_source_sql            TEXT;
@@ -3689,6 +3916,7 @@ $DEFINITION$
 DECLARE
         _in_pull_def            sys_syn.in_pulls_def%ROWTYPE;
         _in_pull_state          sys_syn.in_pulls_state%ROWTYPE;
+        _trans_id               sys_syn.trans_id;
         _possible_changes       BOOLEAN := FALSE;
 BEGIN
         _in_pull_def := (
@@ -3716,6 +3944,8 @@ BEGIN
                         WHERE   in_tables_def.in_pull_id = in_pull_def.in_pull_id AND
                                 in_tables_def.full_prepull_id IS NULL
                 ) || $$);
+
+        _trans_id := sys_syn.trans_id_get();
 $$;
 
         IF in_pull_def.pull_pre_sql IS NOT NULL THEN
@@ -3737,12 +3967,6 @@ $$;
 
                 _in_table_ident := _in_table_def.schema::text || '.' || quote_ident(_in_table_def.in_table_id||'_in');
 
-                _sql_trans_id_in_cte := $$
-                WITH trans_id_in_cte AS (
-                        SELECT sys_syn.trans_id_get()
-                )$$;
-                _sql_trans_id_in_from := $$trans_id_in_cte, $$;
-
                 IF EXISTS (
                         SELECT
                         FROM    sys_syn.in_columns_def
@@ -3752,10 +3976,8 @@ $$;
                                         in_columns_def.column_name) = 'TransIdIn'::sys_syn.in_column_type
                         ) THEN
                         _trans_id_source_sql    := 'in_source.trans_id_in';
-                        _sql_trans_id_in_cte    := '';
-                        _sql_trans_id_in_from   := '';
                 ELSE
-                        _trans_id_source_sql    := 'trans_id_in_cte.trans_id_get';
+                        _trans_id_source_sql    := '_trans_id';
                 END IF;
 
                 IF _in_table_def.changes_pre_sql IS NOT NULL THEN
@@ -3768,7 +3990,7 @@ $$;
 
                         IF _in_table_def.attributes_array THEN
 
-                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
+                                _sql_buffer := _sql_buffer || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -3870,7 +4092,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$)
-                FROM    $$ || _sql_trans_id_in_from || _in_table_def.changes_table_reference || $$ AS in_source
+                FROM    $$ || _in_table_def.changes_table_reference || $$ AS in_source
                 GROUP BY 1$$;
 
                                 FOR     _in_column_def IN
@@ -3894,7 +4116,7 @@ $$;
 $$;
 
                         ELSE
-                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
+                                _sql_buffer := _sql_buffer || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -3934,7 +4156,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$
-                FROM    $$ || _sql_trans_id_in_from || _in_table_def.changes_table_reference || $$ AS in_source;
+                FROM    $$ || _in_table_def.changes_table_reference || $$ AS in_source;
                 IF FOUND THEN _possible_changes := TRUE; END IF;
 $$;
                         END IF;
@@ -3984,6 +4206,29 @@ $$ || _in_table_def.full_pre_sql || $$
 $$;
                 END IF;
 
+                IF _in_table_def.full_prepull_id IS NULL THEN
+                        IF _in_table_def.null_key_handler = 'delete_row'::sys_syn.null_key_handler THEN
+                                RAISE EXCEPTION 'Table in_table_id ''%'' must have a full_prepull_id if null_key_handler is set to '
+                                        '''delete_row''.', _in_table_def.in_table_id
+                                USING HINT = 'Set a prepull or set null_key_handler to none for this table.';
+                        ELSIF _in_table_def.key_violation_handler = 'delete_keep_last_ctid'::sys_syn.key_violation_handler THEN
+                                RAISE EXCEPTION 'Table in_table_id ''%'' must have a full_prepull_id if key_violation_handler is se'
+                                        't to ''delete_keep_last_ctid''.', _in_table_def.in_table_id
+                                USING HINT = 'Set a prepull or set key_violation_handler to none for this table.';
+                        END IF;
+                END IF;
+
+                IF _in_table_def.null_key_handler = 'delete_row'::sys_syn.null_key_handler THEN
+                        _sql_buffer := _sql_buffer || $$
+        DELETE FROM $$ || _in_table_def.full_table_reference || $$ AS in_source
+        WHERE   $$ || sys_syn.util_in_columns_format(_in_table_def.in_table_id, 'Id'::sys_syn.in_column_type,
+                '%VALUE_EXPRESSION% IS NULL', ' OR
+                ') || sys_syn.util_in_columns_format(_in_table_def.in_table_id, 'Attribute'::sys_syn.in_column_type,
+                ' OR
+                %VALUE_EXPRESSION% IS NULL', '', TRUE) || $$;
+$$;
+                END IF;
+
                 IF _in_table_def.key_violation_handler = 'delete_keep_last_ctid'::sys_syn.key_violation_handler THEN
                         _sql_buffer := _sql_buffer || $$
         DELETE FROM $$ || _in_table_def.full_table_reference || $$ AS in_source_delete
@@ -3992,10 +4237,10 @@ $$;
                 FROM    $$ || _in_table_def.full_table_reference || $$ AS in_source_select
                 WHERE   $$ || sys_syn.util_in_columns_format_join(_in_table_def.in_table_id,
                                 'in_source_select', 'in_source_delete', 'Id'::sys_syn.in_column_type,
-        '%VALUE_EXPRESSION_LEFT% IS NOT DISTINCT FROM %VALUE_EXPRESSION_RIGHT% AND
+        '%VALUE_EXPRESSION_LEFT% = %VALUE_EXPRESSION_RIGHT% AND
                         ', '') || sys_syn.util_in_columns_format_join(_in_table_def.in_table_id,
                                 'in_source_select', 'in_source_delete', 'Attribute'::sys_syn.in_column_type,
-        '%VALUE_EXPRESSION_LEFT% IS NOT DISTINCT FROM %VALUE_EXPRESSION_RIGHT% AND
+        '%VALUE_EXPRESSION_LEFT% = %VALUE_EXPRESSION_RIGHT% AND
                         ', '', TRUE) || $$in_source_select.ctid > in_source_delete.ctid);
 $$;
                 END IF;
@@ -4004,7 +4249,7 @@ $$;
 
                         IF _in_table_def.attributes_array THEN
 
-                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
+                                _sql_buffer := _sql_buffer || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -4106,7 +4351,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$)
-                FROM    $$ || _sql_trans_id_in_from || _in_table_def.full_table_reference || $$ AS in_source
+                FROM    $$ || _in_table_def.full_table_reference || $$ AS in_source
                 GROUP BY 1$$;
 
                                 FOR     _in_column_def IN
@@ -4130,7 +4375,7 @@ $$;
 $$;
 
                         ELSE
-                                _sql_buffer := _sql_buffer || _sql_trans_id_in_cte || $$
+                                _sql_buffer := _sql_buffer || $$
                 INSERT  INTO $$||_in_table_ident||$$ (
                         trans_id_in$$;
 
@@ -4173,7 +4418,7 @@ $$;
                                 END LOOP;
 
                                 _sql_buffer := _sql_buffer || $$
-                FROM    $$ || _sql_trans_id_in_from || _in_table_def.full_table_reference || $$ AS in_source;
+                FROM    $$ || _in_table_def.full_table_reference || $$ AS in_source;
                 IF FOUND THEN _possible_changes := TRUE; END IF;
 $$;
                         END IF;
@@ -6574,7 +6819,7 @@ BEGIN
         ';
                         _sql_unlogged_insert := 'trans_id_in,
                 ';
-                        _sql_unlogged_select := 'trans_id_in_cte.trans_id_get,
+                        _sql_unlogged_select := '_trans_id,
                 ';
                 ELSE
                         _sql_unlogged_table_def := _sql_unlogged_table_def || ',
@@ -6617,7 +6862,7 @@ $$;
 $BODY$
 DECLARE
         _prepull_def            sys_syn.prepulls_def%ROWTYPE;
-        _in_pull_state          sys_syn.in_pulls_state%ROWTYPE;
+        _trans_id               sys_syn.trans_id;
         _possible_changes       BOOLEAN := FALSE;
 BEGIN
         _prepull_def := (
@@ -6634,13 +6879,12 @@ BEGIN
 
         PERFORM sys_syn.in_trans_prepull_start(FALSE);
 
-        WITH trans_id_in_cte AS (
-                SELECT sys_syn.trans_id_get()
-        )
+        _trans_id := sys_syn.trans_id_get();
+
         INSERT INTO $$ || _name_unlogged_full || $$ (
                 $$ || _sql_unlogged_insert || $$)
         SELECT  $$ || _sql_unlogged_select || $$
-        FROM    trans_id_in_cte, $$ || _sql_from || from_after_sql || $$;
+        FROM    $$ || _sql_from || from_after_sql || $$;
         IF FOUND THEN _possible_changes := TRUE; END IF;
 
         PERFORM sys_syn.in_trans_finish();
@@ -7667,6 +7911,7 @@ SELECT pg_catalog.pg_extension_config_dump('sys_syn.exclude_reasons', $$WHERE ex
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.foreign_keys_for_c_sql', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.include_reasons', $$WHERE include_reason_id NOT LIKE 'sys_syn-%'$$);
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_column_transforms', $$WHERE rule_group_id NOT LIKE 'sys_syn-%'$$);
+SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_table_transforms', $$WHERE rule_group_id NOT LIKE 'sys_syn-%'$$);
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_foreign_keys', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_groups_def', '');
 SELECT pg_catalog.pg_extension_config_dump('sys_syn.in_pull_sequence_pulls', '');

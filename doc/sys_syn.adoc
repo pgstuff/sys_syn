@@ -176,7 +176,7 @@ In this example, the `sys_syn-general` `rule_group_id` and one other `rule_group
 [source,sql]
 ----
 INSERT INTO sys_syn.in_groups_def
-        (in_group_id,   parent_in_group_id,     in_column_transform_rule_group_ids)
+        (in_group_id,   parent_in_group_id,     rule_group_ids)
 VALUES  ('in',          NULL,                   ARRAY['sys_syn-CHANGETHIS','sys_syn-general']);
 ----
 
@@ -225,9 +225,13 @@ SELECT  sys_syn.in_table_create(
                 changes_pre_sql         => NULL,
                 full_post_sql           => NULL,
                 changes_post_sql        => NULL,
-                enable_deletes_implied  => TRUE,
+                enable_deletes_implied  => 'true',
+                null_key_handler        => 'none'::sys_syn.null_key_handler,
+                key_violation_handler   => 'none'::sys_syn.key_violation_handler,
                 full_prepull_id         => NULL,
                 changes_prepull_id      => NULL,
+                record_comparison_different=>NULL,
+                record_comparison_same  => NULL,
                 in_partitions           => ARRAY[
                         $PART$("",)$PART$]::sys_syn.create_in_partition[]
         );
@@ -471,6 +475,82 @@ If the object changes value while in the `Hold` status, then its queue status is
 
 ==== Advanced
 
+===== in_table_transforms
+
+When a new table is added, the rules in the `sys_syn.in_table_transforms` table sets arguments to the `sys_syn.in_table_create` function when generating the call from `sys_syn.in_table_create_sql`.  The rule is applied when all criteria that is specified in the rule are true.
+
+.Columns
+rule_group_id::
+    NULL for a rule that applies to all tables.
+priority::
+    The order that the rule is applied.
+relation_name_like::
+    The rule is applied to the table when the relation name matches this `LIKE` pattern.
+in_group_id_like::
+    The rule is applied to the table when the in_group_id matches this `LIKE` pattern.
+schema_like::
+    The rule is applied to the table when the schema matches this `LIKE` pattern.
+in_table_id_like::
+    The rule is applied to the table when the in_table_id matches this `LIKE` pattern.
+in_pull_id_like::
+    The rule is applied to the table when the in_pull_id matches this `LIKE` pattern.
+enable_deletes_implied::
+    The rule is applied to the table when enable_deletes_implied is this value.
+null_key_handler::
+    The rule is applied to the table when null_key_handler is this value.
+key_violation_handler::
+    The rule is applied to the table when key_violation_handler is this value.
+full_prepull_id_like::
+    The rule is applied to the table when the full_prepull_id matches this `LIKE` pattern.
+changes_prepull_id_like::
+    The rule is applied to the table when the changes_prepull_id_like matches this `LIKE` pattern.
+new_in_table_id::
+    Change the tables's new_in_table_id to this.
+new_in_pull_id::
+    Change the tables's new_in_pull_id to this.
+new_full_sql::
+    Change the tables's new_full_sql to this.
+new_changes_sql::
+    Change the tables's new_changes_sql to this.
+new_full_pre_sql::
+    Change the tables's new_full_pre_sql to this.
+new_changes_pre_sql::
+    Change the tables's new_changes_pre_sql to this.
+new_full_post_sql::
+    Change the tables's new_full_post_sql to this.
+new_changes_post_sql::
+    Change the tables's new_changes_post_sql to this.
+new_enable_deletes_implied::
+    Change the tables's new_enable_deletes_implied to this.
+new_null_key_handler::
+    Change the tables's new_null_key_handler to this.
+new_key_violation_handler::
+    Change the tables's new_key_violation_handler to this.
+new_full_prepull_id::
+    Change the tables's new_full_prepull_id to this.
+new_changes_prepull_id::
+    Change the tables's new_changes_prepull_id to this.
+new_record_comparison_different::
+    Change the tables's new_record_comparison_different to this.
+new_record_comparison_same::
+    Change the tables's new_record_comparison_same to this.
+new_in_partition::
+    Change the tables's new_in_partition to this.
+new_in_partition_count::
+    Change the tables's new_in_partition_count to this.
+new_in_partitions::
+    Change the tables's new_in_partitions to this.
+omit::
+    Omit this table.
+final_ids::
+    Stop processing rules with any of these IDs.
+final_rule::
+    Stop processing all rules after this one.
+comments::
+    If you want to add comments about this rule in this table, add them in this column.
+
+
+
 ===== in_column_transforms
 
 When new tables are added, the rules in the `sys_syn.in_column_transforms` table adds, modifies, or removes columns.  The rule is applied when all criteria that is specified in the rule are true.
@@ -493,9 +573,9 @@ in_table_id_like::
 in_group_id_like::
     The rule is applied to the column when the in_group_id matches this `LIKE` pattern.
 in_pull_id_like::
-    The rule is applied to the column when the in_pull_id_like matches this `LIKE` pattern.
+    The rule is applied to the column when the in_pull_id matches this `LIKE` pattern.
 schema_like::
-    The rule is applied to the column when the schema_like matches this `LIKE` pattern.
+    The rule is applied to the column when the schema matches this `LIKE` pattern.
 is_key::
     The rule is applied to the column when the column's primary or foreign status is this value.
 primary_in_table_id_like::
@@ -529,7 +609,7 @@ comments::
 
 If you use `sys_syn.in_table_create_sql` to create the call to `in_table_create`, then you may want to use the `sys_syn.foreign_keys_for_c_sql` table to define foreign keys.  When you do this, `in_table_create_sql` will insert these foreign keys into the `in_columns` array when they are referenced.
 
-The following is an example of a value insert, but it is more practical to export all of the foreign keys from your source database and import that into this table.  Use the `database_path` identifier to delete all of the keys related to a specific database when you need to refresh that database's foreign keys data again.
+The following is an example of a value insert, but it is more practical to export all of the foreign keys from your source database and import that into this table.  Use the `database_path` identifier to delete all of the keys related to a specific database when you need to refresh that database's foreign key data again.
 
 [source,sql]
 ----
@@ -547,13 +627,23 @@ VALUES ('server_name/service_instance/database_name',   'test_fkey',
 
 
 
-=== Testing Performance Enhancement
+=== More Examples
+
+See the `test` directory for more examples.
+
+
+
+=== Supplemental Information
+
+
+
+==== Testing Performance Enhancement
 
 Optionally, you can initialize a database server in shared memory to avoid disk I/O.  This useful if you need to run the tests frequently.
 
 
 
-==== Initialize In Memory Server
+===== Initialize In Memory Server
 
 [source,shell]
 ----
@@ -580,7 +670,7 @@ TIP:  To view this instance in pgAdmin3, set the +Host+ to +/dev/shm/$USER-pg_re
 
 
 
-==== Run Tests
+===== Run Tests
 
 [source,shell]
 ----
@@ -589,7 +679,7 @@ sudo PATH=$PATH make clean && sudo PATH=$PATH make install && make installcheck
 
 
 
-==== Shutdown & Delete In Memory Server
+===== Shutdown & Delete In Memory Server
 
 The following commands will shutdown the server and permanently delete all of the data that was created within that server.
 
@@ -606,16 +696,6 @@ rm -Rf "/dev/shm/$USER-pg_regression_test"
 unset PGDATA
 unset PGHOST
 ----
-
-
-
-=== More Examples
-
-See the `test` directory for more examples.
-
-
-
-=== Supplemental Information
 
 
 ==== PL/pgSQL Debugger

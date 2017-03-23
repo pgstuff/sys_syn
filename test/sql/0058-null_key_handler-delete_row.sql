@@ -7,7 +7,7 @@ CREATE SCHEMA user_data
     AUTHORIZATION postgres;
 
 CREATE TABLE user_data.test_table (
-        test_table_id integer NOT NULL,
+        test_table_id integer,
         test_table_text text);
 
 INSERT INTO sys_syn.in_groups_def VALUES ('in');
@@ -28,16 +28,13 @@ DO $$BEGIN
                 full_prepull_id => 'test_table',
                 changes_prepull_id=> NULL,
                 in_table_id     => 'test_table',
-                key_violation_handler => 'delete_keep_last_ctid'::sys_syn.key_violation_handler);
+                null_key_handler=> 'delete_row'::sys_syn.null_key_handler);
 END$$;
 
 INSERT INTO user_data.test_table(
         test_table_id, test_table_text)
 VALUES (1,              'test_data 1'),(
-        1,              'test_data 1'),(
-        2,              'test_data 2 first'),(
-        2,              'test_data 2 middle'),(
-        2,              'test_data 2 last'),(
+        NULL,           'test_data NULL'),(
         3,              'test_data 3');
 
 INSERT INTO sys_syn.out_groups_def VALUES ('out');
@@ -49,17 +46,10 @@ UPDATE sys_syn.trans_id_mod SET trans_id_mod = trans_id_mod + 1;SET LOCAL sys_sy
 SELECT user_data.test_table_pull(FALSE);
 SELECT user_data.test_table_out_move_1();
 
-
-
--- Exclude test_table_text if it fails in this test.  The last_ctid is not
--- guaranteed to be as accurate as a window function, but neither method will
--- be accurate if the incoming records are unordered.  So use the cheaper
--- method (ctid).
-
 SELECT  (in_data.id).*,
         out_queue.delta_type,
         out_queue.queue_state,
-        (in_data.attributes).* -- Comment out this line if it no longer returns "test_data 2 last"
+        (in_data.attributes).*
 FROM    user_data.test_table_out_queue_1 out_queue
         LEFT JOIN user_data.test_table_in_1 AS in_data USING (trans_id_in, id)
 ORDER BY in_data.id;
