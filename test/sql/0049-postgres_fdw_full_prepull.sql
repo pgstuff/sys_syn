@@ -12,7 +12,7 @@ DO $DOBLOCK$BEGIN
         EXECUTE $$CREATE SERVER sys_syn_contrib_regression FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host $$ ||
             quote_literal(split_part((
                     SELECT pg_settings.setting FROM pg_settings WHERE pg_settings.name = 'unix_socket_directories'), ', ', 1)) ||
-            $$, dbname 'contrib_regression')$$;
+            $$, port $$ || quote_literal((SELECT pg_settings.setting FROM pg_settings WHERE pg_settings.name = 'port')) || $$, dbname 'contrib_regression')$$;
 END$DOBLOCK$;
 
 CREATE USER MAPPING FOR public

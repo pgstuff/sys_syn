@@ -43,6 +43,7 @@ SELECT sys_syn.in_table_create_sql(
                  changes_prepull_id      => NULL,                                                      +
                  record_comparison_different=>NULL,                                                    +
                  record_comparison_same  => NULL,                                                      +
+                 tablespace              => NULL,                                                      +
                  in_partitions           => ARRAY[                                                     +
                          $PART$("",)$PART$,                                                            +
                          $PART$("",)$PART$,                                                            +

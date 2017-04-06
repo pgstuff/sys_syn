@@ -636,6 +636,15 @@ See the `test` directory for more examples.
 === Supplemental Information
 
 
+==== Server Performance Tuning
+
+At http://pgtune.leopard.in.ua/, set the `DB Type` to `Data warehouses`.  Enter the memory available to PostgreSQL.  Subtract the memory usage for the other services that run on the same machine.  For `Number of Connections`, account for the `superuser_reserved_connections` value.  If `sys_syn` and `sys_syn_dblink` run on the same server, double the number of connections to account for the dblink connections.  Make the recommended changes.
+
+Increase the `max_locks_per_transaction` value depending on the number of tables that you add and how many partitions that they use.
+
+Adjust the `bgwriter` values with http://blog.postgresql-consulting.com/2017/03/deep-dive-into-postgres-stats_27.html.
+
+
 
 ==== Testing Performance Enhancement
 

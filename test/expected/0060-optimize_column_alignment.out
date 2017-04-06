@@ -1,0 +1,186 @@
+BEGIN;
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION sys_syn;
+CREATE SCHEMA user_data
+    AUTHORIZATION postgres;
+CREATE TABLE user_data.test_table (
+        test_id_int integer NOT NULL,
+        test_id_bigint bigint NOT NULL,
+        test_id_text text NOT NULL,
+        test_attr_text text,
+        test_attr_int integer,
+        test_array_int integer NOT NULL,
+        test_attr_bigint bigint,
+        test_attr_date date,
+        test_attr_int8range int8range,
+        test_attr_timestamp timestamp with time zone,
+        CONSTRAINT test_table_pid PRIMARY KEY (test_id_int, test_id_bigint, test_id_text, test_array_int));
+INSERT INTO sys_syn.in_groups_def VALUES ('in');
+INSERT INTO sys_syn.in_column_transforms(
+        rule_group_id,          priority,       in_table_id_like,       column_name_like,       new_in_column_type,     new_array_order)
+VALUES (null,                   200,            'test_table',           'test_array_int',       'Attribute',            1);
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
+                                                        in_table_create_sql                                                         
+------------------------------------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.in_table_create(                                                                                                  +
+                 schema          => 'user_data'::regnamespace,                                                                     +
+                 in_table_id     => 'test_table',                                                                                  +
+                 in_group_id     => 'in',                                                                                          +
+                 in_pull_id      => NULL,                                                                                          +
+                 in_columns      => ARRAY[                                                                                         +
+                        $COL$("test_id_int","integer",Id,"in_source.test_id_int",,,,,)$COL$,                                       +
+                        $COL$("test_id_bigint","bigint",Id,"in_source.test_id_bigint",,,,,)$COL$,                                  +
+                        $COL$("test_id_text","text",Id,"in_source.test_id_text",,,,,)$COL$,                                        +
+                        $COL$("test_attr_text","text",Attribute,"in_source.test_attr_text",,,,,)$COL$,                             +
+                        $COL$("test_attr_int","integer",Attribute,"in_source.test_attr_int",,,,,)$COL$,                            +
+                        $COL$("test_array_int","integer",Attribute,"in_source.test_array_int",1,,,,)$COL$,                         +
+                        $COL$("test_attr_bigint","bigint",Attribute,"in_source.test_attr_bigint",,,,,)$COL$,                       +
+                        $COL$("test_attr_date","date",Attribute,"in_source.test_attr_date",,,,,)$COL$,                             +
+                        $COL$("test_attr_int8range","int8range",Attribute,"in_source.test_attr_int8range",,,,,)$COL$,              +
+                        $COL$("test_attr_timestamp","timestamp with time zone",Attribute,"in_source.test_attr_timestamp",,,,,)$COL$+
+                 ]::sys_syn.create_in_column[],                                                                                    +
+                 full_table_reference    => 'user_data.test_table',                                                                +
+                 changes_table_reference => NULL,                                                                                  +
+                 full_sql                => NULL,                                                                                  +
+                 changes_sql             => NULL,                                                                                  +
+                 full_pre_sql            => NULL,                                                                                  +
+                 changes_pre_sql         => NULL,                                                                                  +
+                 full_post_sql           => NULL,                                                                                  +
+                 changes_post_sql        => NULL,                                                                                  +
+                 enable_deletes_implied  => 'true',                                                                                +
+                 null_key_handler        => 'none'::sys_syn.null_key_handler,                                                      +
+                 key_violation_handler   => 'none'::sys_syn.key_violation_handler,                                                 +
+                 full_prepull_id         => NULL,                                                                                  +
+                 changes_prepull_id      => NULL,                                                                                  +
+                 record_comparison_different=>NULL,                                                                                +
+                 record_comparison_same  => NULL,                                                                                  +
+                 tablespace              => NULL,                                                                                  +
+                 in_partitions           => ARRAY[                                                                                 +
+                         $PART$("",)$PART$]::sys_syn.create_in_partition[]                                                         +
+         );
+(1 row)
+
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in', optimize_column_alignment => true);
+                                                         in_table_create_sql                                                         
+-------------------------------------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.in_table_create(                                                                                                   +
+                 schema          => 'user_data'::regnamespace,                                                                      +
+                 in_table_id     => 'test_table',                                                                                   +
+                 in_group_id     => 'in',                                                                                           +
+                 in_pull_id      => NULL,                                                                                           +
+                 in_columns      => ARRAY[                                                                                          +
+                        $COL$("test_id_bigint","bigint",Id,"in_source.test_id_bigint",,,,,)$COL$,                                   +
+                        $COL$("test_attr_bigint","bigint",Attribute,"in_source.test_attr_bigint",,,,,)$COL$,                        +
+                        $COL$("test_attr_int8range","int8range",Attribute,"in_source.test_attr_int8range",,,,,)$COL$,               +
+                        $COL$("test_attr_timestamp","timestamp with time zone",Attribute,"in_source.test_attr_timestamp",,,,,)$COL$,+
+                        $COL$("test_id_int","integer",Id,"in_source.test_id_int",,,,,)$COL$,                                        +
+                        $COL$("test_id_text","text",Id,"in_source.test_id_text",,,,,)$COL$,                                         +
+                        $COL$("test_attr_text","text",Attribute,"in_source.test_attr_text",,,,,)$COL$,                              +
+                        $COL$("test_attr_int","integer",Attribute,"in_source.test_attr_int",,,,,)$COL$,                             +
+                        $COL$("test_array_int","integer",Attribute,"in_source.test_array_int",1,,,,)$COL$,                          +
+                        $COL$("test_attr_date","date",Attribute,"in_source.test_attr_date",,,,,)$COL$                               +
+                 ]::sys_syn.create_in_column[],                                                                                     +
+                 full_table_reference    => 'user_data.test_table',                                                                 +
+                 changes_table_reference => NULL,                                                                                   +
+                 full_sql                => NULL,                                                                                   +
+                 changes_sql             => NULL,                                                                                   +
+                 full_pre_sql            => NULL,                                                                                   +
+                 changes_pre_sql         => NULL,                                                                                   +
+                 full_post_sql           => NULL,                                                                                   +
+                 changes_post_sql        => NULL,                                                                                   +
+                 enable_deletes_implied  => 'true',                                                                                 +
+                 null_key_handler        => 'none'::sys_syn.null_key_handler,                                                       +
+                 key_violation_handler   => 'none'::sys_syn.key_violation_handler,                                                  +
+                 full_prepull_id         => NULL,                                                                                   +
+                 changes_prepull_id      => NULL,                                                                                   +
+                 record_comparison_different=>NULL,                                                                                 +
+                 record_comparison_same  => NULL,                                                                                   +
+                 tablespace              => NULL,                                                                                   +
+                 in_partitions           => ARRAY[                                                                                  +
+                         $PART$("",)$PART$]::sys_syn.create_in_partition[]                                                          +
+         );
+(1 row)
+
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in', optimize_column_alignment => true, order_by_in_column_type => true);
+                                                         in_table_create_sql                                                         
+-------------------------------------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.in_table_create(                                                                                                   +
+                 schema          => 'user_data'::regnamespace,                                                                      +
+                 in_table_id     => 'test_table',                                                                                   +
+                 in_group_id     => 'in',                                                                                           +
+                 in_pull_id      => NULL,                                                                                           +
+                 in_columns      => ARRAY[                                                                                          +
+                        $COL$("test_id_bigint","bigint",Id,"in_source.test_id_bigint",,,,,)$COL$,                                   +
+                        $COL$("test_id_int","integer",Id,"in_source.test_id_int",,,,,)$COL$,                                        +
+                        $COL$("test_id_text","text",Id,"in_source.test_id_text",,,,,)$COL$,                                         +
+                        $COL$("test_attr_bigint","bigint",Attribute,"in_source.test_attr_bigint",,,,,)$COL$,                        +
+                        $COL$("test_attr_int8range","int8range",Attribute,"in_source.test_attr_int8range",,,,,)$COL$,               +
+                        $COL$("test_attr_timestamp","timestamp with time zone",Attribute,"in_source.test_attr_timestamp",,,,,)$COL$,+
+                        $COL$("test_attr_text","text",Attribute,"in_source.test_attr_text",,,,,)$COL$,                              +
+                        $COL$("test_attr_int","integer",Attribute,"in_source.test_attr_int",,,,,)$COL$,                             +
+                        $COL$("test_array_int","integer",Attribute,"in_source.test_array_int",1,,,,)$COL$,                          +
+                        $COL$("test_attr_date","date",Attribute,"in_source.test_attr_date",,,,,)$COL$                               +
+                 ]::sys_syn.create_in_column[],                                                                                     +
+                 full_table_reference    => 'user_data.test_table',                                                                 +
+                 changes_table_reference => NULL,                                                                                   +
+                 full_sql                => NULL,                                                                                   +
+                 changes_sql             => NULL,                                                                                   +
+                 full_pre_sql            => NULL,                                                                                   +
+                 changes_pre_sql         => NULL,                                                                                   +
+                 full_post_sql           => NULL,                                                                                   +
+                 changes_post_sql        => NULL,                                                                                   +
+                 enable_deletes_implied  => 'true',                                                                                 +
+                 null_key_handler        => 'none'::sys_syn.null_key_handler,                                                       +
+                 key_violation_handler   => 'none'::sys_syn.key_violation_handler,                                                  +
+                 full_prepull_id         => NULL,                                                                                   +
+                 changes_prepull_id      => NULL,                                                                                   +
+                 record_comparison_different=>NULL,                                                                                 +
+                 record_comparison_same  => NULL,                                                                                   +
+                 tablespace              => NULL,                                                                                   +
+                 in_partitions           => ARRAY[                                                                                  +
+                         $PART$("",)$PART$]::sys_syn.create_in_partition[]                                                          +
+         );
+(1 row)
+
+SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in', optimize_column_alignment => true, order_by_in_column_type => true, order_by_attribute_array => true);
+                                                         in_table_create_sql                                                         
+-------------------------------------------------------------------------------------------------------------------------------------
+ SELECT  sys_syn.in_table_create(                                                                                                   +
+                 schema          => 'user_data'::regnamespace,                                                                      +
+                 in_table_id     => 'test_table',                                                                                   +
+                 in_group_id     => 'in',                                                                                           +
+                 in_pull_id      => NULL,                                                                                           +
+                 in_columns      => ARRAY[                                                                                          +
+                        $COL$("test_id_bigint","bigint",Id,"in_source.test_id_bigint",,,,,)$COL$,                                   +
+                        $COL$("test_id_int","integer",Id,"in_source.test_id_int",,,,,)$COL$,                                        +
+                        $COL$("test_id_text","text",Id,"in_source.test_id_text",,,,,)$COL$,                                         +
+                        $COL$("test_array_int","integer",Attribute,"in_source.test_array_int",1,,,,)$COL$,                          +
+                        $COL$("test_attr_bigint","bigint",Attribute,"in_source.test_attr_bigint",,,,,)$COL$,                        +
+                        $COL$("test_attr_int8range","int8range",Attribute,"in_source.test_attr_int8range",,,,,)$COL$,               +
+                        $COL$("test_attr_timestamp","timestamp with time zone",Attribute,"in_source.test_attr_timestamp",,,,,)$COL$,+
+                        $COL$("test_attr_text","text",Attribute,"in_source.test_attr_text",,,,,)$COL$,                              +
+                        $COL$("test_attr_int","integer",Attribute,"in_source.test_attr_int",,,,,)$COL$,                             +
+                        $COL$("test_attr_date","date",Attribute,"in_source.test_attr_date",,,,,)$COL$                               +
+                 ]::sys_syn.create_in_column[],                                                                                     +
+                 full_table_reference    => 'user_data.test_table',                                                                 +
+                 changes_table_reference => NULL,                                                                                   +
+                 full_sql                => NULL,                                                                                   +
+                 changes_sql             => NULL,                                                                                   +
+                 full_pre_sql            => NULL,                                                                                   +
+                 changes_pre_sql         => NULL,                                                                                   +
+                 full_post_sql           => NULL,                                                                                   +
+                 changes_post_sql        => NULL,                                                                                   +
+                 enable_deletes_implied  => 'true',                                                                                 +
+                 null_key_handler        => 'none'::sys_syn.null_key_handler,                                                       +
+                 key_violation_handler   => 'none'::sys_syn.key_violation_handler,                                                  +
+                 full_prepull_id         => NULL,                                                                                   +
+                 changes_prepull_id      => NULL,                                                                                   +
+                 record_comparison_different=>NULL,                                                                                 +
+                 record_comparison_same  => NULL,                                                                                   +
+                 tablespace              => NULL,                                                                                   +
+                 in_partitions           => ARRAY[                                                                                  +
+                         $PART$("",)$PART$]::sys_syn.create_in_partition[]                                                          +
+         );
+(1 row)
+
+ROLLBACK;

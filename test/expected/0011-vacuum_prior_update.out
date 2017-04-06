@@ -35,6 +35,7 @@ SELECT sys_syn.in_table_create_sql('user_data.test_table'::regclass, 'in');
                  changes_prepull_id      => NULL,                                                      +
                  record_comparison_different=>NULL,                                                    +
                  record_comparison_same  => NULL,                                                      +
+                 tablespace              => NULL,                                                      +
                  in_partitions           => ARRAY[                                                     +
                          $PART$("",)$PART$]::sys_syn.create_in_partition[]                             +
          );

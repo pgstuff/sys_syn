@@ -201,6 +201,7 @@ ALTER TABLE sys_syn.in_column_transforms
         ADD CONSTRAINT priority_disallow_sign CHECK (priority >= 0);
 CREATE UNIQUE INDEX ON sys_syn.in_column_transforms (
         priority, data_type_like, relation_name_like, in_column_type, column_name_like);
+CREATE INDEX ON sys_syn.in_column_transforms (rule_group_id);
 
 CREATE TABLE sys_syn.in_pulls_def (
         in_pull_id      text            NOT NULL,
@@ -506,6 +507,7 @@ ALTER TABLE sys_syn.out_column_transforms
         ADD CONSTRAINT priority_disallow_sign CHECK (priority >= 0);
 CREATE UNIQUE INDEX ON sys_syn.out_column_transforms (
         priority, data_type_like, in_table_id_like, out_group_id_like, schema_like, in_column_type, column_name_like);
+CREATE INDEX ON sys_syn.out_column_transforms (rule_group_id);
 
 CREATE TABLE sys_syn.in_pull_sequences_def (
         in_pull_sequence_id     text    NOT NULL,
@@ -561,6 +563,7 @@ CREATE TABLE sys_syn.in_table_transforms (
         new_changes_prepull_id          text,
         new_record_comparison_different text,
         new_record_comparison_same      text,
+        new_tablespace                  text,
         new_in_partition                sys_syn.create_in_partition,
         new_in_partition_count          smallint,
         new_in_partitions               sys_syn.create_in_partition[],
@@ -575,6 +578,7 @@ ALTER TABLE sys_syn.in_table_transforms
 CREATE UNIQUE INDEX ON sys_syn.in_table_transforms (
         priority, relation_name_like, in_group_id_like, schema_like, in_table_id_like, in_pull_id_like, enable_deletes_implied,
         null_key_handler);
+CREATE INDEX ON sys_syn.in_table_transforms (rule_group_id);
 
 CREATE TABLE sys_syn.exclude_reasons (
         exclude_reason_id       int             NOT NULL,
@@ -1190,6 +1194,102 @@ END;
 $BODY$;
 COMMENT ON FUNCTION sys_syn.util_table_create_run_state() IS '';
 
+CREATE FUNCTION sys_syn.util_parse_data_type (
+        data_type_sql text)
+        RETURNS oid
+        LANGUAGE plpgsql
+        COST 30000
+        AS $BODY$
+DECLARE
+        _oid oid;
+BEGIN
+        EXECUTE format('CREATE TEMP TABLE sys_syn_type_parse_temp (dt_to_parse %s)', data_type_sql);
+        INSERT INTO sys_syn_type_parse_temp VALUES (NULL);
+        SELECT pg_typeof("dt_to_parse") INTO _oid FROM sys_syn_type_parse_temp;
+        DROP TABLE sys_syn_type_parse_temp;
+        RETURN _oid;
+END;
+$BODY$;
+COMMENT ON FUNCTION sys_syn.util_parse_data_type(text) IS '';
+
+CREATE FUNCTION sys_syn.util_optimize_column_alignment (
+        in_columns sys_syn.create_in_column[],
+        order_by_in_column_type boolean,
+        order_by_attribute_array boolean)
+        RETURNS sys_syn.create_in_column[]
+        LANGUAGE plpgsql
+        COST 50000
+        AS $BODY$
+DECLARE
+        _aligned_in_columns sys_syn.create_in_column[];
+BEGIN
+        CREATE TEMP TABLE sys_syn_types (
+                original_ordinal smallint,
+                in_column sys_syn.create_in_column,
+                type_oid oid,
+                typlen smallint,
+                typalign char
+        );
+
+        INSERT INTO sys_syn_types
+        SELECT  in_columns.original_ordinal,
+                ROW(
+                        in_columns.column_name,
+                        in_columns.data_type,
+                        in_columns.in_column_type,
+                        in_columns.source_in_expression,
+                        in_columns.array_order,
+                        in_columns.foreign_key_index,
+                        in_columns.primary_in_table_id,
+                        in_columns.primary_column_name,
+                        in_columns."collation")::sys_syn.create_in_column
+        FROM    unnest(in_columns) WITH ORDINALITY in_columns(column_name, data_type, in_column_type, source_in_expression,
+                        array_order, foreign_key_index, primary_in_table_id, primary_column_name, "collation", original_ordinal);
+
+        UPDATE  sys_syn_types
+        SET     type_oid = sys_syn.util_parse_data_type((in_column).data_type);
+
+        UPDATE  sys_syn_types
+        SET     (typlen, typalign) = (
+                        SELECT  pg_type.typlen, pg_type.typalign
+                        FROM    pg_type
+                        WHERE   pg_type.oid = sys_syn_types.type_oid);
+
+        SELECT  array_agg(in_column ORDER BY
+                        CASE
+                                WHEN order_by_in_column_type = FALSE THEN 1
+                                ELSE    CASE
+                                        WHEN (in_column).in_column_type = 'Id'::sys_syn.in_column_type THEN 1
+                                        WHEN (in_column).in_column_type = 'Attribute'::sys_syn.in_column_type THEN
+                                                CASE
+                                                WHEN order_by_attribute_array THEN COALESCE((in_column).array_order + 2, 32768)
+                                                ELSE 2
+                                                END
+                                        WHEN (in_column).in_column_type = 'NoDiff'::sys_syn.in_column_type THEN 32769
+                                        ELSE 32770
+                                        END
+                        END,
+                        CASE
+                                WHEN typlen >= 8 THEN 8
+                                WHEN typlen <= 0 THEN CASE
+                                        WHEN typalign = 'c' THEN 4
+                                        WHEN typalign = 's' THEN 2
+                                        WHEN typalign = 'i' THEN 4
+                                        WHEN typalign = 'd' THEN 8
+                                        END
+                                ELSE typlen
+                        END DESC,
+                        original_ordinal)
+        INTO    _aligned_in_columns
+        FROM    sys_syn_types;
+
+        DROP TABLE sys_syn_types;
+
+        RETURN _aligned_in_columns;
+END;
+$BODY$;
+COMMENT ON FUNCTION sys_syn.util_optimize_column_alignment(sys_syn.create_in_column[], boolean, boolean) IS '';
+
 CREATE FUNCTION sys_syn.in_table_create (
         schema                  regnamespace,
         in_table_id             text,
@@ -1211,6 +1311,7 @@ CREATE FUNCTION sys_syn.in_table_create (
         changes_prepull_id      text    DEFAULT NULL,
         record_comparison_different text DEFAULT NULL,
         record_comparison_same  text    DEFAULT NULL,
+        tablespace              name    DEFAULT NULL,
         in_partitions           sys_syn.create_in_partition[] DEFAULT ARRAY[('',NULL)]::sys_syn.create_in_partition[])
         RETURNS void
         LANGUAGE plpgsql
@@ -1273,7 +1374,7 @@ BEGIN
                 full_pre_sql,                   changes_pre_sql,
                 full_post_sql,                  changes_post_sql,
                 enable_deletes_implied,         null_key_handler,       key_violation_handler,
-                record_comparison_different,    record_comparison_same)
+                record_comparison_different,    record_comparison_same, tablespace)
         VALUES (
                 schema,         in_table_id,    in_group_id,    _in_pull_id,    _attributes_array,
                 (SELECT COALESCE(MAX(in_pull_order), 0) + 1 FROM sys_syn.in_tables_def
@@ -1284,7 +1385,7 @@ BEGIN
                 full_pre_sql,                   changes_pre_sql,
                 full_post_sql,                  changes_post_sql,
                 enable_deletes_implied,         null_key_handler,       key_violation_handler,
-                record_comparison_different,    record_comparison_same);
+                record_comparison_different,    record_comparison_same, tablespace);
 
         _in_table_def := (
                 SELECT  in_tables_def
@@ -1379,21 +1480,21 @@ BEGIN
         attributes ' || schema::text || '.' || quote_ident(in_table_id||'_in_attributes') ||
         CASE WHEN _attributes_array THEN '[]' ELSE '' END || ',
         no_diff ' || schema::text || '.' || quote_ident(in_table_id||'_in_no_diff') || '
-);';
+)' || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ' (
         id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
         exclude_reason_id int NOT NULL
-);';
+)' || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include') || ' (
         id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
         include_reason_id int NOT NULL
-);';
+)' || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1417,7 +1518,8 @@ BEGIN
         FROM    sys_syn.in_partitions_def
         WHERE   in_partitions_def.in_table_id = _in_table_def.in_table_id
         LOOP
-                PERFORM sys_syn.in_table_create_partition(schema, in_table_id, _attributes_array, _in_partition_def.partition_id);
+                PERFORM sys_syn.in_table_create_partition(schema, in_table_id, _attributes_array, _in_partition_def.partition_id,
+                        _in_partition_def.tablespace);
         END LOOP;
 
         _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_in_insert')||$$() RETURNS TRIGGER AS $TRIG$
@@ -1564,13 +1666,15 @@ COMMENT ON FUNCTION sys_syn.in_table_create(
         changes_prepull_id      text,
         record_comparison_different     text,
         record_comparison_same          text,
+        tablespace              name,
         in_partitions           sys_syn.create_in_partition[]) IS '';
 
 CREATE FUNCTION sys_syn.in_table_create_partition (
         schema                  regnamespace,
         in_table_id             text,
         attributes_array        boolean,
-        partition_id            smallint
+        partition_id            smallint,
+        tablespace              name
 )
         RETURNS void
         LANGUAGE plpgsql COST 10
@@ -1583,7 +1687,8 @@ BEGIN
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || ' (
         trans_id_in sys_syn.trans_id DEFAULT sys_syn.trans_id_get() NOT NULL
-) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_in') || ');';
+) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_in') || ')' ||
+        COALESCE(' TABLESPACE ' || quote_ident(tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1599,7 +1704,8 @@ BEGIN
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude'||_part_suffix) || ' (
-) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ');';
+) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ')' ||
+        COALESCE(' TABLESPACE ' || quote_ident(tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1609,7 +1715,8 @@ BEGIN
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || ' (
-) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_include') || ');';
+) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_include') || ')' ||
+        COALESCE(' TABLESPACE ' || quote_ident(tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1623,7 +1730,8 @@ COMMENT ON FUNCTION sys_syn.in_table_create_partition(
         schema                  regnamespace,
         in_table_id             text,
         attributes_array        boolean,
-        partition_id            smallint) IS '';
+        partition_id            smallint,
+        tablespace              name) IS '';
 
 
 CREATE FUNCTION sys_syn.in_table_create_sql (
@@ -1649,9 +1757,13 @@ CREATE FUNCTION sys_syn.in_table_create_sql (
         changes_prepull_id      text    DEFAULT NULL,
         record_comparison_different text DEFAULT NULL,
         record_comparison_same  text    DEFAULT NULL,
+        tablespace              name    DEFAULT NULL,
         in_partition            sys_syn.create_in_partition DEFAULT NULL::sys_syn.create_in_partition,
         in_partition_count      smallint DEFAULT NULL::smallint,
-        in_partitions           sys_syn.create_in_partition[] DEFAULT NULL::sys_syn.create_in_partition[]
+        in_partitions           sys_syn.create_in_partition[] DEFAULT NULL::sys_syn.create_in_partition[],
+        optimize_column_alignment boolean DEFAULT FALSE,
+        order_by_in_column_type boolean DEFAULT FALSE,
+        order_by_attribute_array boolean DEFAULT FALSE
 )
         RETURNS text
         LANGUAGE plpgsql COST 10
@@ -1673,6 +1785,9 @@ DECLARE
         _changes_prepull_id     text;
         _record_comparison_different text;
         _record_comparison_same text;
+        _tablespace             text;
+        _sql_in_columns         sys_syn.create_in_column[];
+        _sql_in_column          sys_syn.create_in_column;
         _in_partition           sys_syn.create_in_partition;
         _in_partition_count     smallint;
         _in_partitions          sys_syn.create_in_partition[];
@@ -1743,6 +1858,8 @@ BEGIN
         _changes_prepull_id             := changes_prepull_id;
         _record_comparison_different    := record_comparison_different;
         _record_comparison_same         := record_comparison_same;
+        _tablespace                     := tablespace;
+        _sql_in_columns                 := ARRAY[]::sys_syn.create_in_column[];
         _in_partition                   := in_partition;
         _in_partition_count             := in_partition_count;
         _in_partitions                  := in_partitions;
@@ -1853,6 +1970,10 @@ BEGIN
                         IF _in_table_transform.new_record_comparison_same IS NOT NULL THEN
                                 _record_comparison_same := replace(_in_table_transform.new_record_comparison_same,
                                         '%1',_record_comparison_same);
+                        END IF;
+
+                        IF _in_table_transform.new_tablespace IS NOT NULL THEN
+                                _tablespace := replace(_in_table_transform.new_tablespace, '%1',_tablespace);
                         END IF;
 
                         IF _in_table_transform.new_in_partition IS NOT NULL THEN
@@ -2086,8 +2207,29 @@ BEGIN
                 END LOOP;
 
                 IF NOT _omit THEN
-                        IF _sql_buffer IS NULL THEN
-                                _sql_buffer := $$SELECT  sys_syn.in_table_create(
+                        _sql_in_column.column_name := _column_name;
+                        _sql_in_column.data_type := _format_type;
+                        _sql_in_column.in_column_type := _in_column_type;
+                        _sql_in_column.source_in_expression := _source_in_expression;
+                        _sql_in_column.array_order := _array_order;
+                        _sql_in_column.foreign_key_index := _foreign_key_index;
+                        _sql_in_column.primary_in_table_id := _foreign_keys_for_c_sql.primary_in_table_id;
+                        _sql_in_column.primary_column_name := _foreign_keys_for_c_sql.primary_column_name;
+                        _sql_in_column."collation" := null;
+                        _sql_in_columns := _sql_in_columns || _sql_in_column;
+                END IF;
+
+                _sql_in_columns := _sql_in_columns || _create_in_columns;
+        END LOOP;
+
+        DROP TABLE foreign_key_ids_temp;
+
+        IF optimize_column_alignment THEN
+                _sql_in_columns := sys_syn.util_optimize_column_alignment(_sql_in_columns, order_by_in_column_type,
+                        order_by_attribute_array);
+        END IF;
+
+        _sql_buffer := $$SELECT  sys_syn.in_table_create(
                 schema          => $$||(
                                         SELECT  quote_literal(quote_ident(
                                                 COALESCE(in_table_create_sql.schema::text, pg_namespace.nspname)))||'::regnamespace'
@@ -2101,32 +2243,31 @@ BEGIN
                 in_pull_id      => $$||quote_nullable(_in_pull_id)||$$,
                 in_columns      => ARRAY[
 $$;
-                        ELSE
-                                _sql_buffer := _sql_buffer || ',
-';
-                        END IF;
 
-                        _sql_buffer := _sql_buffer || $X$                       $COL$($X$||
-                                sys_syn.quote_array_value(_column_name)||$X$,$X$||
-                                sys_syn.quote_array_value(_format_type)||$X$,$X$||
-                                _in_column_type||$X$,$X$||
-                                sys_syn.quote_array_value(_source_in_expression)||$X$,$X$||
-                                COALESCE(_array_order::text, '')||$X$,$X$||
-                                COALESCE(_foreign_key_index::TEXT,'')||$X$,$X$||
-                                sys_syn.quote_array_value(_foreign_keys_for_c_sql.primary_in_table_id)||$X$,$X$||
-                                sys_syn.quote_array_value(_foreign_keys_for_c_sql.primary_column_name)||$X$,)$COL$$X$;
+        _first_item = TRUE;
+
+        FOR     _sql_in_column IN
+        SELECT  *
+        FROM    unnest(_sql_in_columns)
+        LOOP
+                IF _first_item THEN
+                        _first_item = FALSE;
+                ELSE
+                        _sql_buffer := _sql_buffer || ',
+';
                 END IF;
 
-                FOR     _create_in_column IN
-                SELECT  unnest(_create_in_columns)
-                LOOP
-                        _sql_buffer := _sql_buffer || $$        '"$$||
-                                        _create_in_column::text||$$"'$$;
-                END LOOP;
-
+                _sql_buffer := _sql_buffer || $X$                       $COL$($X$||
+                        sys_syn.quote_array_value(_sql_in_column.column_name)||$X$,$X$||
+                        sys_syn.quote_array_value(_sql_in_column.data_type)||$X$,$X$||
+                        _sql_in_column.in_column_type||$X$,$X$||
+                        sys_syn.quote_array_value(_sql_in_column.source_in_expression)||$X$,$X$||
+                        COALESCE(_sql_in_column.array_order::text, '')||$X$,$X$||
+                        COALESCE(_sql_in_column.foreign_key_index::TEXT,'')||$X$,$X$||
+                        sys_syn.quote_array_value(_sql_in_column.primary_in_table_id)||$X$,$X$||
+                        sys_syn.quote_array_value(_sql_in_column.primary_column_name)||$X$,$X$||
+                        sys_syn.quote_array_value(_sql_in_column."collation")||$X$)$COL$$X$;
         END LOOP;
-
-        DROP TABLE foreign_key_ids_temp;
 
         _sql_buffer := _sql_buffer || $$
                 ]::sys_syn.create_in_column[],
@@ -2145,6 +2286,7 @@ $$;
                 changes_prepull_id      => $$||quote_nullable(_changes_prepull_id)||$$,
                 record_comparison_different=>$$||quote_nullable(_record_comparison_different)||$$,
                 record_comparison_same  => $$||quote_nullable(_record_comparison_same)||$$,
+                tablespace              => $$||quote_nullable(_tablespace)||$$,
                 in_partitions           => ARRAY[$$;
 
         _first_item = TRUE;
@@ -2193,9 +2335,13 @@ COMMENT ON FUNCTION sys_syn.in_table_create_sql(
         changes_prepull_id      text,
         record_comparison_different     text,
         record_comparison_same          text,
+        tablespace              name,
         in_partition            sys_syn.create_in_partition,
         in_partition_count      smallint,
-        in_partitions           sys_syn.create_in_partition[]
+        in_partitions           sys_syn.create_in_partition[],
+        optimize_column_alignment boolean,
+        order_by_in_column_type boolean,
+        order_by_attribute_array boolean
         ) IS '';
 
 CREATE FUNCTION sys_syn.in_table_columns_add_sql (
@@ -2356,13 +2502,13 @@ BEGIN
                 LOOP
 
                         IF      (_in_column_transform.data_type_like            IS NULL OR
-                                        _format_type            LIKE _in_column_transform.data_type_like) AND
+                                        _format_type                            LIKE _in_column_transform.data_type_like) AND
                                 (_in_column_transform.relation_name_like        IS NULL OR
-                                        _relation::text         LIKE _in_column_transform.relation_name_like) AND
+                                        _relation::text                         LIKE _in_column_transform.relation_name_like) AND
                                 (_in_column_transform.column_name_like          IS NULL OR
-                                        _column_name            LIKE _in_column_transform.column_name_like) AND
+                                        _column_name                            LIKE _in_column_transform.column_name_like) AND
                                 (_in_column_transform.in_column_type            IS NULL OR
-                                        _in_column_type = _in_column_transform.in_column_type) AND
+                                        _in_column_type =                       _in_column_transform.in_column_type) AND
                                 (_in_column_transform.in_table_id_like          IS NULL OR
                                         _in_table_def.in_table_id               LIKE _in_column_transform.in_table_id_like) AND
                                 (_in_column_transform.in_group_id_like          IS NULL OR
