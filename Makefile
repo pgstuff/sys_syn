@@ -27,7 +27,7 @@ PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
 doc-html-single:
-ifeq (, $(shell which asciidoc 2> /dev/null))
+ifeq (, $(shell which $(ASCIIDOC) 2> /dev/null))
 	@echo "No asciidoc in $(PATH), install asciidoc for documentation in the HTML format"
 	@echo "View the documentation at $(DESTDIR)$(docdir)/$(docmoduledir)/$(EXTENSION).adoc after the install (or doc/$(EXTENSION).adoc now)."
 else

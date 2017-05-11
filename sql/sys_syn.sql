@@ -1030,7 +1030,7 @@ CREATE CONSTRAINT TRIGGER include_reasons_check_old
 
 
 
-CREATE FUNCTION sys_syn.gen_pseudorandom_uuid(seed text)
+CREATE FUNCTION sys_syn.gen_random_uuid()
         RETURNS text
         LANGUAGE 'plpgsql'
         COST 1000
@@ -1043,7 +1043,10 @@ BEGIN
 
         _hash := md5(
                         clock_timestamp()::text ||
-                        COALESCE(seed, 'a') ||
+                        random()::text ||
+                        random()::text ||
+                        random()::text ||
+                        random()::text ||
                         transaction_timestamp()::text ||
                         md5(COALESCE(current_setting('config_file', true), 'b')) ||
                         md5(COALESCE(current_setting('cluster_name', true), 'c')) ||
@@ -1075,9 +1078,9 @@ BEGIN
                 substr(_hash, 21, 12));
 END;
 $BODY$;
-COMMENT ON FUNCTION sys_syn.gen_pseudorandom_uuid(text) IS '';
+COMMENT ON FUNCTION sys_syn.gen_random_uuid() IS '';
 ALTER TABLE ONLY sys_syn.settings ALTER COLUMN cluster_id
-        SET DEFAULT sys_syn.gen_pseudorandom_uuid('sys_syn');
+        SET DEFAULT sys_syn.gen_random_uuid();
 
 CREATE FUNCTION sys_syn.quote_array_value (raw_value text)
         RETURNS text
@@ -3664,13 +3667,13 @@ BEGIN
         hold_reason_text text,
         trans_id_out sys_syn.trans_id,
         processed_time timestamp with time zone
-) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue') || ');';
+) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_'||out_group_id||'_queue') || ') WITH (fillfactor=40);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_name_temp := quote_ident(in_table_id||'_'||out_group_id||'_queue'||_part_suffix||'_pkey');
         _sql_buffer := 'ALTER TABLE ONLY '||_sql_name_table_queue||'
-        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id);';
+        ADD CONSTRAINT '||_sql_name_temp||' PRIMARY KEY (id) WITH (fillfactor=90);';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -6088,8 +6091,6 @@ BEGIN
         WHERE   out_queue.queue_state   = 'Processed'::sys_syn.queue_state AND
                 out_queue.delta_type    = 'Delete'::sys_syn.delta_type;
 
-        /* If ON CONFLICT (id) DO UPDATE does not perform well:
-
         UPDATE  $$||_out_table_baseline_ident||$$ AS out_baseline
         SET     trans_id_in = out_queue.trans_id_in
         FROM    $$||_out_table_queue_ident||$$ AS out_queue
@@ -6106,14 +6107,6 @@ BEGIN
                         FROM    $$||_out_table_baseline_ident||$$ AS out_baseline
                         WHERE   out_baseline.id = out_queue.id
                 );
-        IF FOUND THEN _processed_addchange := TRUE; END IF;*/
-
-        INSERT INTO $$||_out_table_baseline_ident||$$
-        SELECT  out_queue.id,          out_queue.trans_id_in
-        FROM    $$||_out_table_queue_ident||$$ AS out_queue
-        WHERE   out_queue.queue_state = 'Processed'::sys_syn.queue_state
-        ON CONFLICT (id) DO UPDATE
-        SET     trans_id_in = EXCLUDED.trans_id_in;
         IF FOUND THEN _processed_addchange := TRUE; END IF;
 
         DELETE
