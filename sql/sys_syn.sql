@@ -1326,6 +1326,8 @@ DECLARE
         _attributes_array       BOOLEAN;
         _sql_buffer             TEXT;
         _sql_delimit            BOOLEAN;
+        _sql_part               TEXT := '';
+        _enable_part            BOOLEAN;
         _in_column              sys_syn.create_in_column;
         _column_index           SMALLINT;
         _foreign_key_id         TEXT;
@@ -1343,6 +1345,8 @@ BEGIN
                         SET     logical_replication = TRUE;
                 END IF;
         END IF;
+
+        _enable_part := current_setting('server_version_num')::int >= 100000;
 
         _settings := (
                 SELECT  settings
@@ -1477,27 +1481,47 @@ BEGIN
                         _in_column.source_in_expression);
         END LOOP;
 
+        IF _enable_part THEN
+                _sql_buffer := 'CREATE FUNCTION ' || schema::text||'.'||quote_ident(in_table_id||'_id_part') || $$ (
+        id $$ || schema::text || '.' || quote_ident(in_table_id||'_in_id') || $$)
+RETURNS SMALLINT
+SET timezone TO 'UTC'
+SET bytea_output TO 'hex'
+IMMUTABLE
+STRICT
+COST 10
+AS $DEFINITION$
+BEGIN
+        RETURN get_byte(decode(md5(id::text), 'hex'), 0) % $$ || array_length(in_partitions, 1)::text || $$;
+END;
+$DEFINITION$ LANGUAGE plpgsql;$$;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
+
+                _sql_part := $$ PARTITION BY LIST($$||schema::text||'.'||quote_ident(in_table_id||'_id_part')||$$(id))$$;
+        END IF;
+
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_in') || ' (
         trans_id_in sys_syn.trans_id DEFAULT sys_syn.trans_id_get() NOT NULL,
         id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
         attributes ' || schema::text || '.' || quote_ident(in_table_id||'_in_attributes') ||
         CASE WHEN _attributes_array THEN '[]' ELSE '' END || ',
         no_diff ' || schema::text || '.' || quote_ident(in_table_id||'_in_no_diff') || '
-)' || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
+)' || _sql_part || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ' (
         id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
         exclude_reason_id int NOT NULL
-)' || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
+)' || _sql_part || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
         _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include') || ' (
         id ' || schema::text || '.' || quote_ident(in_table_id||'_in_id') || ' NOT NULL,
         include_reason_id int NOT NULL
-)' || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
+)' || _sql_part || COALESCE(' TABLESPACE ' || quote_ident(_in_table_def.tablespace), '') || ';';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
@@ -1525,7 +1549,10 @@ BEGIN
                         _in_partition_def.tablespace);
         END LOOP;
 
-        _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_in_insert')||$$() RETURNS TRIGGER AS $TRIG$
+        IF NOT _enable_part THEN
+                _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_in_insert')||$$()
+RETURNS TRIGGER
+AS $TRIG$
 BEGIN
         INSERT INTO $$ || schema::text || '.' || quote_ident(in_table_id||'_in_1') || $$ VALUES (new.*);
         SET LOCAL sys_syn.pull_found_records = 1;
@@ -1535,45 +1562,45 @@ $TRIG$ LANGUAGE plpgsql;$$;
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_exclude_insert')||
-                $$() RETURNS TRIGGER AS $TRIG$
+                _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_exclude_insert')||
+                        $$() RETURNS TRIGGER AS $TRIG$
 BEGIN
         INSERT INTO $$ || schema::text || '.' || quote_ident(in_table_id||'_exclude_1') || $$ VALUES (new.*);
         SET LOCAL sys_syn.pull_found_records = 1;
         RETURN NULL;
 END;
 $TRIG$ LANGUAGE plpgsql;$$;
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_include_insert')||
-                $$() RETURNS TRIGGER AS $TRIG$
+                _sql_buffer := 'CREATE FUNCTION '||schema::text||'.'||quote_ident(in_table_id||'_include_insert')||
+                        $$() RETURNS TRIGGER AS $TRIG$
 BEGIN
         INSERT INTO $$ || schema::text || '.' || quote_ident(in_table_id||'_include_1') || $$ VALUES (new.*);
         SET LOCAL sys_syn.pull_found_records = 1;
         RETURN NULL;
 END;
 $TRIG$ LANGUAGE plpgsql;$$;
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_in_insert')||'
+                _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_in_insert')||'
     BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_in') || '
     FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_in_insert') || '();';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_exclude_insert')||'
+                _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_exclude_insert')||'
     BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || '
     FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude_insert') || '();';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_include_insert')||'
+                _sql_buffer := 'CREATE TRIGGER '||quote_ident(in_table_id||'_include_insert')||'
     BEFORE INSERT ON ' || schema::text || '.' || quote_ident(in_table_id||'_include') || '
     FOR EACH ROW EXECUTE PROCEDURE ' || schema::text || '.' || quote_ident(in_table_id||'_include_insert') || '();';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
 /*_sql_buffer := 'CREATE RULE '||quote_ident(in_table_id||'_in_insert_rule')||' AS
         ON INSERT TO ' || schema::text || '.' || quote_ident(in_table_id||'_in') || ' WHERE
@@ -1601,6 +1628,7 @@ DO INSTEAD
 ';
         RAISE DEBUG '%', _sql_buffer;
         EXECUTE _sql_buffer;*/
+        END IF;
 
         _foreign_key_id := '';
         FOR     _in_column IN
@@ -1685,48 +1713,77 @@ CREATE FUNCTION sys_syn.in_table_create_partition (
 DECLARE
         _part_suffix            TEXT;
         _sql_buffer             TEXT;
+        _sql_part               TEXT;
+        _enable_part            BOOLEAN;
 BEGIN
         _part_suffix := '_' || partition_id;
 
-        _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || ' (
+        _enable_part := current_setting('server_version_num')::int >= 100000;
+
+        IF _enable_part THEN
+                _sql_part := ' FOR VALUES IN (' || (partition_id - 1)::text || ')';
+
+                _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || '
+        PARTITION OF ' || schema::text || '.' || quote_ident(in_table_id||'_in') || ' (
+        PRIMARY KEY (trans_id_in, id)
+        )' || _sql_part || ';';
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
+
+                _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude'||_part_suffix) || '
+        PARTITION OF ' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ' (
+        PRIMARY KEY (id)
+        )' || _sql_part || ';';
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
+
+                _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || '
+        PARTITION OF ' || schema::text || '.' || quote_ident(in_table_id||'_include') || ' (
+        PRIMARY KEY (id)
+        )' || _sql_part || ';';
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
+        ELSE
+                _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || ' (
         trans_id_in sys_syn.trans_id DEFAULT sys_syn.trans_id_get() NOT NULL
 ) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_in') || ')' ||
-        COALESCE(' TABLESPACE ' || quote_ident(tablespace), '') || ';';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                COALESCE(' TABLESPACE ' || quote_ident(tablespace), '') || ';';
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || '
+                _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || '
         ADD CONSTRAINT ' || quote_ident(in_table_id||'_in'||_part_suffix||'_pkey') || ' PRIMARY KEY (trans_id_in, id);';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || '
+                _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_in'||_part_suffix) || '
         ADD CONSTRAINT ' || quote_ident(in_table_id||'_in_sys_syn_trans_id_fkey') || ' FOREIGN KEY (trans_id_in)
         REFERENCES sys_syn.in_trans_log(trans_id_in) ON UPDATE RESTRICT ON DELETE RESTRICT;';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude'||_part_suffix) || ' (
+                _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_exclude'||_part_suffix) || ' (
 ) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_exclude') || ')' ||
         COALESCE(' TABLESPACE ' || quote_ident(tablespace), '') || ';';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_exclude'||_part_suffix) || '
+                _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_exclude'||_part_suffix) || '
         ADD CONSTRAINT ' || quote_ident(in_table_id||'_exclude'||_part_suffix||'_pkey') || ' PRIMARY KEY (id, exclude_reason_id);';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || ' (
+                _sql_buffer := 'CREATE TABLE ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || ' (
 ) INHERITS (' || schema::text || '.' || quote_ident(in_table_id||'_include') || ')' ||
         COALESCE(' TABLESPACE ' || quote_ident(tablespace), '') || ';';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
 
-        _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || '
+                _sql_buffer := 'ALTER TABLE ONLY ' || schema::text || '.' || quote_ident(in_table_id||'_include'||_part_suffix) || '
         ADD CONSTRAINT ' || quote_ident(in_table_id||'_include'||_part_suffix||'_pkey') || ' PRIMARY KEY (id, include_reason_id);';
-        RAISE DEBUG '%', _sql_buffer;
-        EXECUTE _sql_buffer;
+                RAISE DEBUG '%', _sql_buffer;
+                EXECUTE _sql_buffer;
+        END IF;
 END;
 $_$;
 COMMENT ON FUNCTION sys_syn.in_table_create_partition(
@@ -4846,7 +4903,10 @@ BEGIN
 
         _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
                 quote_ident(_in_table_def.in_table_id||'_in_insert')||$$()
-        RETURNS TRIGGER AS $TRIG$
+RETURNS TRIGGER
+SET timezone TO 'UTC'
+SET bytea_output TO 'hex'
+AS $TRIG$
 DECLARE
         _hash integer;
 BEGIN
@@ -4883,7 +4943,10 @@ $TRIG$ LANGUAGE plpgsql;$$;
 
         _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
                 quote_ident(_in_table_def.in_table_id||'_exclude_insert')||$$()
-        RETURNS TRIGGER AS $TRIG$
+RETURNS TRIGGER
+SET timezone TO 'UTC'
+SET bytea_output TO 'hex'
+AS $TRIG$
 DECLARE
         _hash integer;
 BEGIN
@@ -4920,7 +4983,10 @@ $TRIG$ LANGUAGE plpgsql;$$;
 
         _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
                 quote_ident(_in_table_def.in_table_id||'_include_insert')||$$()
-        RETURNS TRIGGER AS $TRIG$
+RETURNS TRIGGER
+SET timezone TO 'UTC'
+SET bytea_output TO 'hex'
+AS $TRIG$
 DECLARE
         _hash integer;
 BEGIN
@@ -6264,6 +6330,8 @@ CREATE FUNCTION $$||_out_table_def.schema::text || '.' || _function_name_ident||
         random_sample   smallint        DEFAULT NULL)
         RETURNS boolean
         LANGUAGE plpgsql
+        SET timezone TO 'UTC'
+        SET bytea_output TO 'hex'
         SECURITY DEFINER
         COST 500
         AS $DEFINITION$
@@ -7895,16 +7963,16 @@ BEGIN
                 PERFORM sys_syn.in_table_drop_partition(in_table_id, _in_partition_def.partition_id);
         END LOOP;
 
-        EXECUTE 'DROP TRIGGER '||quote_ident(_in_table_def.in_table_id||'_in_insert')||' ON '||_in_table_def.schema::text||
-                '.'||quote_ident(_in_table_def.in_table_id||'_in');
+        EXECUTE 'DROP TRIGGER IF EXISTS '||quote_ident(_in_table_def.in_table_id||'_in_insert')||' ON '||
+                _in_table_def.schema::text||'.'||quote_ident(_in_table_def.in_table_id||'_in');
 
-        EXECUTE 'DROP TRIGGER '||quote_ident(_in_table_def.in_table_id||'_exclude_insert')||' ON '||_in_table_def.schema::text||
-                '.'||quote_ident(_in_table_def.in_table_id||'_exclude');
+        EXECUTE 'DROP TRIGGER IF EXISTS '||quote_ident(_in_table_def.in_table_id||'_exclude_insert')||' ON '||
+                _in_table_def.schema::text||'.'||quote_ident(_in_table_def.in_table_id||'_exclude');
 
-        EXECUTE 'DROP TRIGGER '||quote_ident(_in_table_def.in_table_id||'_include_insert')||' ON '||_in_table_def.schema::text||
-                '.'||quote_ident(_in_table_def.in_table_id||'_include');
+        EXECUTE 'DROP TRIGGER IF EXISTS '||quote_ident(_in_table_def.in_table_id||'_include_insert')||' ON '||
+                _in_table_def.schema::text||'.'||quote_ident(_in_table_def.in_table_id||'_include');
 
-        _sql_command_prefix := 'DROP FUNCTION ' || _in_table_def.schema::text || '.';
+        _sql_command_prefix := 'DROP FUNCTION IF EXISTS ' || _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_insert') || '()';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude_insert') || '()';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_include_insert') || '()';
@@ -7913,6 +7981,10 @@ BEGIN
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_exclude');
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_include');
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in');
+
+        _sql_command_prefix := 'DROP FUNCTION IF EXISTS ' || _in_table_def.schema::text || '.';
+        EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_id_part') || '(' ||
+                _in_table_def.schema::text || '.'|| quote_ident(_in_table_def.in_table_id||'_in_id') || ')';
 
         _sql_command_prefix := 'DROP TYPE '|| _in_table_def.schema::text || '.';
         EXECUTE _sql_command_prefix || quote_ident(_in_table_def.in_table_id||'_in_no_diff');
