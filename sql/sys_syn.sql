@@ -1030,6 +1030,24 @@ CREATE CONSTRAINT TRIGGER include_reasons_check_old
 
 
 
+CREATE FUNCTION sys_syn.hash_id(record)
+        RETURNS INT AS 'sys_syn', 'hash_id'
+        LANGUAGE c IMMUTABLE STRICT
+        COST 2;
+COMMENT ON FUNCTION sys_syn.hash_id(record) IS '';
+
+CREATE FUNCTION sys_syn.crc32_id(record)
+        RETURNS INT AS 'sys_syn', 'crc32_id'
+        LANGUAGE c IMMUTABLE STRICT
+        COST 2;
+COMMENT ON FUNCTION sys_syn.crc32_id(record) IS '';
+
+CREATE FUNCTION sys_syn.crc32c_id(record)
+        RETURNS INT AS 'sys_syn', 'crc32c_id'
+        LANGUAGE c IMMUTABLE STRICT
+        COST 2;
+COMMENT ON FUNCTION sys_syn.crc32c_id(record) IS '';
+
 CREATE FUNCTION sys_syn.gen_random_uuid()
         RETURNS text
         LANGUAGE 'plpgsql'
@@ -1057,13 +1075,6 @@ BEGIN
                         COALESCE(current_setting('shared_buffers', true), 'h') ||
                         COALESCE(current_setting('wal_level', true), 'i') ||
                         COALESCE(current_setting('work_mem', true), 'j') ||
-                        -- If any of the following columns are missing after a major upgrade, delete the entire line.
-                        pg_backend_pid()::text ||
-                        (SELECT SUM(pid::int)::text || array_to_string(array_agg(state_change::text),',') FROM pg_stat_activity) ||
-                        (SELECT SUM(checkpoints_timed)::text || SUM(checkpoint_write_time)::text FROM pg_stat_bgwriter) ||
-                        (SELECT SUM(xact_commit)::text || SUM(tup_updated)::text || SUM(tup_inserted)::text FROM pg_stat_database)||
-                        (SELECT SUM(blks_hit)::text || SUM(blks_read)::text FROM pg_statio_all_sequences) ||
-                        (SELECT backend_xmin FROM pg_stat_get_activity(pg_backend_pid())) ||
                         clock_timestamp()::text
                 );
 
@@ -1485,8 +1496,19 @@ BEGIN
                 _sql_buffer := 'CREATE FUNCTION ' || schema::text||'.'||quote_ident(in_table_id||'_id_part') || $$ (
         id $$ || schema::text || '.' || quote_ident(in_table_id||'_in_id') || $$)
 RETURNS SMALLINT
-SET timezone TO 'UTC'
+-- If you can guarantee that these never change, then you can remove the SETs for slightly better performance.
 SET bytea_output TO 'hex'
+SET DateStyle TO 'ISO'
+SET IntervalStyle TO 'postgres'
+SET extra_float_digits TO 0
+SET lc_monetary TO 'en_US.UTF-8'
+SET lc_numeric TO 'en_US.UTF-8'
+SET lc_time TO 'en_US.UTF-8'
+SET lc_monetary TO 'en_US.UTF-8'
+SET TimeZone TO 'UTC'
+-- Extremely slow: SET timezone_abbreviations TO 'Default'
+SET xmlbinary TO 'base64'
+SET XML OPTION DOCUMENT
 IMMUTABLE
 STRICT
 COST 10
@@ -4904,8 +4926,19 @@ BEGIN
         _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
                 quote_ident(_in_table_def.in_table_id||'_in_insert')||$$()
 RETURNS TRIGGER
-SET timezone TO 'UTC'
+-- If you can guarantee that these never change, then you can remove the SETs for slightly better performance.
 SET bytea_output TO 'hex'
+SET DateStyle TO 'ISO'
+SET IntervalStyle TO 'postgres'
+SET extra_float_digits TO 0
+SET lc_monetary TO 'en_US.UTF-8'
+SET lc_numeric TO 'en_US.UTF-8'
+SET lc_time TO 'en_US.UTF-8'
+SET lc_monetary TO 'en_US.UTF-8'
+SET TimeZone TO 'UTC'
+-- Extremely slow: SET timezone_abbreviations TO 'Default'
+SET xmlbinary TO 'base64'
+SET XML OPTION DOCUMENT
 AS $TRIG$
 DECLARE
         _hash integer;
@@ -4944,8 +4977,19 @@ $TRIG$ LANGUAGE plpgsql;$$;
         _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
                 quote_ident(_in_table_def.in_table_id||'_exclude_insert')||$$()
 RETURNS TRIGGER
-SET timezone TO 'UTC'
+-- If you can guarantee that these never change, then you can remove the SETs for slightly better performance.
 SET bytea_output TO 'hex'
+SET DateStyle TO 'ISO'
+SET IntervalStyle TO 'postgres'
+SET extra_float_digits TO 0
+SET lc_monetary TO 'en_US.UTF-8'
+SET lc_numeric TO 'en_US.UTF-8'
+SET lc_time TO 'en_US.UTF-8'
+SET lc_monetary TO 'en_US.UTF-8'
+SET TimeZone TO 'UTC'
+-- Extremely slow: SET timezone_abbreviations TO 'Default'
+SET xmlbinary TO 'base64'
+SET XML OPTION DOCUMENT
 AS $TRIG$
 DECLARE
         _hash integer;
@@ -4984,8 +5028,19 @@ $TRIG$ LANGUAGE plpgsql;$$;
         _sql_buffer := 'CREATE OR REPLACE FUNCTION '||_in_table_def.schema::text||'.'||
                 quote_ident(_in_table_def.in_table_id||'_include_insert')||$$()
 RETURNS TRIGGER
-SET timezone TO 'UTC'
+-- If you can guarantee that these never change, then you can remove the SETs for slightly better performance.
 SET bytea_output TO 'hex'
+SET DateStyle TO 'ISO'
+SET IntervalStyle TO 'postgres'
+SET extra_float_digits TO 0
+SET lc_monetary TO 'en_US.UTF-8'
+SET lc_numeric TO 'en_US.UTF-8'
+SET lc_time TO 'en_US.UTF-8'
+SET lc_monetary TO 'en_US.UTF-8'
+SET TimeZone TO 'UTC'
+-- Extremely slow: SET timezone_abbreviations TO 'Default'
+SET xmlbinary TO 'base64'
+SET XML OPTION DOCUMENT
 AS $TRIG$
 DECLARE
         _hash integer;
@@ -6330,8 +6385,19 @@ CREATE FUNCTION $$||_out_table_def.schema::text || '.' || _function_name_ident||
         random_sample   smallint        DEFAULT NULL)
         RETURNS boolean
         LANGUAGE plpgsql
-        SET timezone TO 'UTC'
+        -- If you can guarantee that these never change, then you can remove the SETs for slightly better performance.
         SET bytea_output TO 'hex'
+        SET DateStyle TO 'ISO'
+        SET IntervalStyle TO 'postgres'
+        SET extra_float_digits TO 0
+        SET lc_monetary TO 'en_US.UTF-8'
+        SET lc_numeric TO 'en_US.UTF-8'
+        SET lc_time TO 'en_US.UTF-8'
+        SET lc_monetary TO 'en_US.UTF-8'
+        SET TimeZone TO 'UTC'
+        -- Extremely slow: SET timezone_abbreviations TO 'Default'
+        SET xmlbinary TO 'base64'
+        SET XML OPTION DOCUMENT
         SECURITY DEFINER
         COST 500
         AS $DEFINITION$

@@ -6,6 +6,7 @@ DOCS         = $(wildcard doc/*.adoc doc/*.html)
 TESTS        = $(wildcard test/sql/*.sql)
 REGRESS      = $(patsubst test/sql/%.sql,%,$(TESTS))
 REGRESS_OPTS = --inputdir=test --load-language=plpgsql
+MODULES      = $(patsubst %.c,%,$(wildcard src/*.c))
 #
 # Uncoment the MODULES line if you are adding C files
 # to your extention.

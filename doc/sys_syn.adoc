@@ -666,6 +666,7 @@ full_page_writes = off
 random_page_cost = 1.0
 update_process_title = off
 EOF
+test/performance/tune.sh -r n
 echo "CREATE ROLE $USER SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN" | postmaster --single -D "$PGDATA" -F -h "" -k "$PGDATA" postgres && echo
 postmaster -D "$PGDATA" -F -h "" -k "$PGDATA" & sleep 2; echo
 export PGHOST=$PGDATA

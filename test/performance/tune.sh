@@ -2,14 +2,74 @@
 
 set -eu
 
+pg_config_dir=${PGDATA-}
+pg_config_path=
+pg_reload=1
+
+function get_boolean() {
+    case "$(echo "$1" | tr '[:upper:]' '[:lower:]')" in
+        1|t|true|y|yes)
+            echo 1
+            return
+        ;;
+        0|f|false|n|no)
+            echo 0
+            return
+        ;;
+    esac
+    echo "Value \"$1\" is not a recognized boolean value." >&2
+    exit 2
+}
+
+parsed_args=$(getopt -o "d:c:r:" -l "datadirectory:,configfile:,reload:" -n "$(basename $0)" -- "$@")
+
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+
+eval set -- "$parsed_args"
+
+while [[ $# -gt 1 ]]; do
+    case "$1" in
+        -d|--datadirectory)
+            pg_config_dir=$2
+            shift
+        ;;
+        -c|--configfile)
+            pg_config_path=$2
+            shift
+        ;;
+        -r|--reload)
+            pg_reload=$(get_boolean $2)
+            shift
+        ;;
+        *)
+            exit 2
+        ;;
+    esac
+    shift
+done
+
+if [ -n "$pg_config_dir" ]; then
+    if [ -z "$pg_config_path" ]; then
+        if [ -e "$pg_config_dir/postgresql.conf" ]; then
+            pg_config_path=$pg_config_dir/postgresql.conf
+        fi
+    fi
+fi
+
 superuser_reserved_connections=3
 user_connections=20
 sys_syn_connections=$(($(nproc) + 1))
 sys_syn_dblink_connections=$(($(nproc) + 1))
 max_connections=$(($sys_syn_connections + $sys_syn_dblink_connections + $superuser_reserved_connections + $user_connections))
 tune_config_name=sys_syn_tune.conf
-pg_config_dir=$(psql -tAc 'show data_directory' postgres)
-pg_config_path=$(psql -tAc 'show config_file' postgres)
+if [ -z "$pg_config_dir" ]; then
+    pg_config_dir=$(psql -tAc 'show data_directory' postgres)
+fi
+if [ -z "$pg_config_path" ]; then
+    pg_config_path=$(psql -tAc 'show config_file' postgres)
+fi
 tune_config_path=${pg_config_dir}/${tune_config_name}
 tune_profile=dw
 
@@ -55,5 +115,7 @@ if ! grep -q "include.*=.*${tune_config_name}" "$pg_config_path"; then
 fi
 
 echo "Updated $tune_config_path"
-echo -n "PostgreSQL "; pg_ctl reload
-echo 'You may need to run "pg_ctl restart" to make all changes effective.'
+if [ $pg_reload -ne 0 ]; then
+    echo -n "PostgreSQL "; pg_ctl reload
+    echo 'You may need to run "pg_ctl restart" to make all changes effective.'
+fi

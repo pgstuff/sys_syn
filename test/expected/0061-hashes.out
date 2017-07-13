@@ -1,0 +1,241 @@
+BEGIN;
+CREATE EXTENSION tinyint SCHEMA public;
+CREATE EXTENSION citext;
+CREATE EXTENSION sys_syn;
+CREATE TYPE single_column_test AS (column_name text);
+CREATE TABLE test_hash_values (
+        test_order integer,
+        text_to_hash single_column_test
+);
+INSERT INTO test_hash_values VALUES (1, '()'::single_column_test);
+INSERT INTO test_hash_values VALUES (2, '(123456789)'::single_column_test);
+INSERT INTO test_hash_values VALUES (3, '(1234567890)'::single_column_test);
+INSERT INTO test_hash_values VALUES (4, '(The quick brown fox jumps over the lazy dog)'::single_column_test);
+INSERT INTO test_hash_values VALUES (5, '(test)'::single_column_test);
+INSERT INTO test_hash_values VALUES (6, '(TEST)'::single_column_test);
+INSERT INTO test_hash_values VALUES (7, '(a)'::single_column_test);
+INSERT INTO test_hash_values VALUES (8, '(abc)'::single_column_test);
+SELECT  (text_to_hash).column_name,
+        to_hex(sys_syn.hash_id(text_to_hash))      AS hash_hex,    sys_syn.hash_id(text_to_hash)  AS hash_int,
+        to_hex(sys_syn.crc32_id(text_to_hash))     AS crc32_hex,   sys_syn.crc32_id(text_to_hash) AS crc32_int,
+        to_hex(sys_syn.crc32c_id(text_to_hash))    AS crc32c_hex,  sys_syn.crc32c_id(text_to_hash)AS crc32c_int
+FROM    test_hash_values
+ORDER BY test_order;
+                 column_name                 | hash_hex |  hash_int  | crc32_hex | crc32_int  | crc32c_hex | crc32c_int  
+---------------------------------------------+----------+------------+-----------+------------+------------+-------------
+                                             | 0        |          0 | 0         |          0 | 0          |           0
+ 123456789                                   | 3c7347a8 | 1014187944 | cbf43926  | -873187034 | e3069283   |  -486108541
+ 1234567890                                  | e9c1ee42 | -373166526 | 261daee5  |  639479525 | f3dbd4fe   |  -203696898
+ The quick brown fox jumps over the lazy dog | ceae6ac7 | -827430201 | 414fa339  | 1095738169 | 22620404   |   576848900
+ test                                        | 6995a621 | 1771415073 | d87f7e0c  | -662733300 | 86a072c0   | -2036305216
+ TEST                                        | 3246c9dd |  843499997 | eeea93b8  | -286616648 | eff7f083   |  -268963709
+ a                                           | 401370b1 | 1075015857 | e8b7be43  | -390611389 | c1d04330   | -1043315920
+ abc                                         | d12feb97 | -785388649 | 352441c2  |  891568578 | 364b3fb7   |   910901175
+(8 rows)
+
+CREATE TYPE columns_test AS (column_text_1 text, column_text_2 text, column_int integer, column_smallint smallint, column_bigint bigint);
+CREATE TABLE test_hash_values_2 (
+        test_order integer,
+        columns_to_hash columns_test
+);
+INSERT INTO test_hash_values_2 VALUES (1, '(,,,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (2, '(12345,6789,,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (3, '(The quick brown fox, jumps over the lazy dog,,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (4, '(te,st,,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (5, '(TE,ST,,,)'::columns_test);
+SELECT  (columns_to_hash).column_text_1,
+        (columns_to_hash).column_text_2,
+        to_hex(sys_syn.hash_id(columns_to_hash))   AS hash_hex,    sys_syn.hash_id(columns_to_hash)   AS hash_int,
+        to_hex(sys_syn.crc32_id(columns_to_hash))  AS crc32_hex,   sys_syn.crc32_id(columns_to_hash)  AS crc32_int,
+        to_hex(sys_syn.crc32c_id(columns_to_hash)) AS crc32c_hex,  sys_syn.crc32c_id(columns_to_hash) AS crc32c_int
+FROM    test_hash_values_2
+ORDER BY test_order;
+    column_text_1    |      column_text_2       | hash_hex |  hash_int   | crc32_hex | crc32_int  | crc32c_hex | crc32c_int  
+---------------------+--------------------------+----------+-------------+-----------+------------+------------+-------------
+                     |                          | 0        |           0 | 0         |          0 | 0          |           0
+ 12345               | 6789                     | 837e20fa | -2088886022 | cbf43926  | -873187034 | e3069283   |  -486108541
+ The quick brown fox |  jumps over the lazy dog | 53c8fa   |     5490938 | 414fa339  | 1095738169 | 22620404   |   576848900
+ te                  | st                       | 37f7b823 |   938981411 | d87f7e0c  | -662733300 | 86a072c0   | -2036305216
+ TE                  | ST                       | 612c2128 |  1630282024 | eeea93b8  | -286616648 | eff7f083   |  -268963709
+(5 rows)
+
+TRUNCATE test_hash_values_2;
+-- .column_int
+INSERT INTO test_hash_values_2 VALUES ( 6, '(,,0,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES ( 7, '(,,1,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES ( 8, '(,,-2147483648,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES ( 9, '(,,2147483647,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (10, '(,,-32768,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (11, '(,,32767,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (12, '(,,-126,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (13, '(,,127,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (14, '(,,-1234567898,,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (15, '(,,1234567898,,)'::columns_test);
+-- column_smallint
+INSERT INTO test_hash_values_2 VALUES (16, '(,,,0,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (17, '(,,,1,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (18, '(,,,-32768,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (19, '(,,,32767,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (20, '(,,,-126,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (21, '(,,,127,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (22, '(,,,-12345,)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (23, '(,,,12345,)'::columns_test);
+-- column_bigint
+INSERT INTO test_hash_values_2 VALUES (24, '(,,,,0)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (25, '(,,,,1)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (26, '(,,,,-9223372036854775808)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (27, '(,,,,9223372036854775807)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (28, '(,,,,-2147483648)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (29, '(,,,,2147483647)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (30, '(,,,,-32768)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (31, '(,,,,32767)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (32, '(,,,,-126)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (33, '(,,,,127)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (34, '(,,,,-1234567899876543210)'::columns_test);
+INSERT INTO test_hash_values_2 VALUES (35, '(,,,,1234567899876543210)'::columns_test);
+SELECT  (columns_to_hash).column_int,
+        (columns_to_hash).column_smallint,
+        (columns_to_hash).column_bigint,
+        to_hex(sys_syn.hash_id(columns_to_hash))        AS hash_hex,    sys_syn.hash_id(columns_to_hash)        AS hash_int,
+        to_hex(sys_syn.crc32_id(columns_to_hash))       AS crc32_hex,   sys_syn.crc32_id(columns_to_hash)       AS crc32_int,
+        to_hex(sys_syn.crc32c_id(columns_to_hash))      AS crc32c_hex,  sys_syn.crc32c_id(columns_to_hash)      AS crc32c_int
+FROM    test_hash_values_2
+ORDER BY COALESCE(
+                (columns_to_hash).column_int,
+                (columns_to_hash).column_smallint,
+                (columns_to_hash).column_bigint),
+        test_order;
+ column_int  | column_smallint |    column_bigint     | hash_hex |  hash_int   | crc32_hex |  crc32_int  | crc32c_hex | crc32c_int  
+-------------+-----------------+----------------------+----------+-------------+-----------+-------------+------------+-------------
+             |                 | -9223372036854775808 | 5f1fa9a4 |  1595910564 | 889a5c49  | -2003149751 | ede89f2    |   249465330
+             |                 | -1234567899876543210 | ab044389 | -1425783927 | b1ce2b32  | -1311888590 | d133016a   |  -785186454
+ -2147483648 |                 |                      | b3da36fd | -1277544707 | a7f4f18   |   176115480 | 5512d3ee   |  1427297262
+             |                 |          -2147483648 | b3da36fd | -1277544707 | a7f4f18   |   176115480 | 5512d3ee   |  1427297262
+ -1234567898 |                 |                      | dbbd9ea5 |  -608330075 | 31556c64  |   827681892 | 464b2187   |  1179328903
+      -32768 |                 |                      | 1d74d81c |   494196764 | 1d2f7938  |   489650488 | df0d48d9   |  -552777511
+             |          -32768 |                      | 1d74d81c |   494196764 | 1d2f7938  |   489650488 | df0d48d9   |  -552777511
+             |                 |               -32768 | 1d74d81c |   494196764 | 1d2f7938  |   489650488 | df0d48d9   |  -552777511
+             |          -12345 |                      | 538d9cc7 |  1401789639 | df0f3286  |  -552652154 | 222a5a2b   |   573200939
+        -126 |                 |                      | 196ff4b9 |   426767545 | 16115b5d  |   370236253 | f10b1748   |  -250931384
+             |            -126 |                      | 196ff4b9 |   426767545 | 16115b5d  |   370236253 | f10b1748   |  -250931384
+             |                 |                 -126 | 196ff4b9 |   426767545 | 16115b5d  |   370236253 | f10b1748   |  -250931384
+           0 |                 |                      | 0        |           0 | 6522df69  |  1696784233 | 8c28b28a   | -1943489910
+             |               0 |                      | 0        |           0 | 6522df69  |  1696784233 | 8c28b28a   | -1943489910
+             |                 |                    0 | 0        |           0 | 6522df69  |  1696784233 | 8c28b28a   | -1943489910
+           1 |                 |                      | 61cdd7e9 |  1640880105 | a988dff7  | -1450647561 | c514cfad   |  -988491859
+             |               1 |                      | 61cdd7e9 |  1640880105 | a988dff7  | -1450647561 | c514cfad   |  -988491859
+             |                 |                    1 | 61cdd7e9 |  1640880105 | a988dff7  | -1450647561 | c514cfad   |  -988491859
+         127 |                 |                      | 1b89ee96 |   462024342 | 10525c55  |   273833045 | a73c144b   | -1489234869
+             |             127 |                      | 1b89ee96 |   462024342 | 10525c55  |   273833045 | a73c144b   | -1489234869
+             |                 |                  127 | 1b89ee96 |   462024342 | 10525c55  |   273833045 | a73c144b   | -1489234869
+             |           12345 |                      | 14e692f2 |   350655218 | 57c3326d  |  1472410221 | af59de41   | -1353064895
+       32767 |                 |                      | a35e45e5 | -1554102811 | 5949794d  |  1497987405 | 1b42b194   |   457355668
+             |           32767 |                      | a35e45e5 | -1554102811 | 5949794d  |  1497987405 | 1b42b194   |   457355668
+             |                 |                32767 | a35e45e5 | -1554102811 | 5949794d  |  1497987405 | 1b42b194   |   457355668
+  1234567898 |                 |                      | b9efc946 | -1175467706 | fbbc6bf2  |   -71537678 | 59405fa3   |  1497391011
+  2147483647 |                 |                      | 158556bc |   361060028 | 4e194f6d  |  1310281581 | 915d2aa3   | -1856165213
+             |                 |           2147483647 | 158556bc |   361060028 | 4e194f6d  |  1310281581 | 915d2aa3   | -1856165213
+             |                 |  1234567899876543210 | bf647e72 | -1083933070 | 7b272ca4  |  2066164900 | ce387f4e   |  -835158194
+             |                 |  9223372036854775807 | 5f1fa9a4 |  1595910564 | ccfc5c3c  |  -855876548 | ca9170bf   |  -896438081
+(30 rows)
+
+CREATE TYPE datatype_test AS (
+        column_decimal decimal,
+        column_real real,
+        column_double double precision,
+        column_money money,
+        column_bytea bytea,
+        column_timestamp timestamp without time zone,
+        column_timestamptz timestamp with time zone,
+        column_date date,
+        column_time time without time zone,
+        column_timetz time with time zone,
+        column_interval interval,
+        column_boolean boolean,
+        column_point point,
+        column_line line,
+        column_uuid uuid,
+        column_int4range int4range,
+        column_daterange daterange);
+CREATE TABLE test_hash_values_3 (
+        test_order integer,
+        columns_to_hash datatype_test
+);
+INSERT INTO test_hash_values_3 VALUES ( 1, E'(1234.56,,,,,,,,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 2, E'(,1234.56,,,,,,,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 3, E'(,,1234.56,,,,,,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 4, E'(,,,"$1234.56",,,,,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 5, E'(,,,,\\\\xDEADBEEF,,,,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 6, E'(,,,,,"2017-12-31 12:34:56.123456",,,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 7, E'(,,,,,,"2017-12-31 12:34:56.123456-05",,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 8, E'(,,,,,,,2017-12-31,,,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES ( 9, E'(,,,,,,,,"12:34:56.123456",,,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (10, E'(,,,,,,,,,"12:34:56.123456-05",,,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (11, E'(,,,,,,,,,,"1-2",,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (12, E'(,,,,,,,,,,,true,,,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (14, E'(,,,,,,,,,,,,"(1.2,3.4)",,,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (15, E'(,,,,,,,,,,,,,"{1.2,3.4,5.6}",,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (16, E'(,,,,,,,,,,,,,,a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,,)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (17, E'(,,,,,,,,,,,,,,,"[1,2)",)'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (18, E'(,,,,,,,,,,,,,,,,"[2017-01-01,2017-12-31)")'::datatype_test);
+INSERT INTO test_hash_values_3 VALUES (19, E'(1234.56,1234.56,1234.56,"$1234.56",\\\\xDEADBEEF,"2017-12-31 12:34:56.123456","2017-12-31 12:34:56.123456-05",2017-12-31,"12:34:56.123456","12:34:56.123456-05","1-2",true,"(1.2,3.4)","{1.2,3.4,5.6}",a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,"[1,2)","[2017-01-01,2017-12-31)")'::datatype_test);
+SELECT  (columns_to_hash).*,
+        to_hex(sys_syn.hash_id(columns_to_hash))        AS hash_hex,    sys_syn.hash_id(columns_to_hash)        AS hash_int,
+        to_hex(sys_syn.crc32_id(columns_to_hash))       AS crc32_hex,   sys_syn.crc32_id(columns_to_hash)       AS crc32_int,
+        to_hex(sys_syn.crc32c_id(columns_to_hash))      AS crc32c_hex,  sys_syn.crc32c_id(columns_to_hash)      AS crc32c_int
+FROM    test_hash_values_3
+ORDER BY test_order;
+ column_decimal | column_real | column_double | column_money | column_bytea |        column_timestamp         |         column_timestamptz          | column_date |   column_time   |   column_timetz    | column_interval | column_boolean | column_point |  column_line  |             column_uuid              | column_int4range |    column_daterange     | hash_hex |  hash_int   | crc32_hex |  crc32_int  | crc32c_hex | crc32c_int  
+----------------+-------------+---------------+--------------+--------------+---------------------------------+-------------------------------------+-------------+-----------------+--------------------+-----------------+----------------+--------------+---------------+--------------------------------------+------------------+-------------------------+----------+-------------+-----------+-------------+------------+-------------
+        1234.56 |             |               |              |              |                                 |                                     |             |                 |                    |                 |                |              |               |                                      |                  |                         | 7c03fd44 |  2080636228 | 85b3f648  | -2051803576 | 6eb26a88   |  1857186440
+                |     1234.56 |               |              |              |                                 |                                     |             |                 |                    |                 |                |              |               |                                      |                  |                         | 127f7d68 |   310345064 | 2a8c8202  |   713851394 | 1128621    |    17991201
+                |             |       1234.56 |              |              |                                 |                                     |             |                 |                    |                 |                |              |               |                                      |                  |                         | 3e289fa0 |  1042849696 | af20cdc6  | -1356804666 | 3334d443   |   859100227
+                |             |               |    $1,234.56 |              |                                 |                                     |             |                 |                    |                 |                |              |               |                                      |                  |                         | ebd66b1d |  -338269411 | 13dc791f  |   333216031 | 1b9cc102   |   463257858
+                |             |               |              | \xdeadbeef   |                                 |                                     |             |                 |                    |                 |                |              |               |                                      |                  |                         | 1eda4946 |   517622086 | 7c9ca35a  |  2090640218 | f1dc778e   |  -237209714
+                |             |               |              |              | Sun Dec 31 12:34:56.123456 2017 |                                     |             |                 |                    |                 |                |              |               |                                      |                  |                         | aae05184 | -1428139644 | 6c82261e  |  1820468766 | f94520ab   |  -112910165
+                |             |               |              |              |                                 | Sun Dec 31 09:34:56.123456 2017 PST |             |                 |                    |                 |                |              |               |                                      |                  |                         | 285eeacd |   677309133 | 55befc23  |  1438579747 | e9eb8a00   |  -370439680
+                |             |               |              |              |                                 |                                     | 12-31-2017  |                 |                    |                 |                |              |               |                                      |                  |                         | ebd788b8 |  -338196296 | 9f0729d5  | -1626920491 | 125136d6   |   307312342
+                |             |               |              |              |                                 |                                     |             | 12:34:56.123456 |                    |                 |                |              |               |                                      |                  |                         | 6d976d95 |  1838640533 | a98cd10b  | -1450389237 | af5549a7   | -1353365081
+                |             |               |              |              |                                 |                                     |             |                 | 12:34:56.123456-05 |                 |                |              |               |                                      |                  |                         | b78109b5 | -1216280139 | fd2835c1  |   -47696447 | bb23dd63   | -1155277469
+                |             |               |              |              |                                 |                                     |             |                 |                    | @ 1 year 2 mons |                |              |               |                                      |                  |                         | 5353f138 |  1398010168 | c643c66   |   207895654 | 7071eb7e   |  1886514046
+                |             |               |              |              |                                 |                                     |             |                 |                    |                 | t              |              |               |                                      |                  |                         | 8e731746 | -1905060026 | a505df1b  | -1526341861 | a016d052   | -1609117614
+                |             |               |              |              |                                 |                                     |             |                 |                    |                 |                | (1.2,3.4)    |               |                                      |                  |                         | 5af6ced4 |  1526124244 | fb44a8cb  |   -79386421 | 57305ac2   |  1462786754
+                |             |               |              |              |                                 |                                     |             |                 |                    |                 |                |              | {1.2,3.4,5.6} |                                      |                  |                         | 28d4d745 |   685037381 | 93e96574  | -1813420684 | 8d34ac01   | -1925927935
+                |             |               |              |              |                                 |                                     |             |                 |                    |                 |                |              |               | a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 |                  |                         | 44d2cf05 |  1154666245 | 7b9445d8  |  2073314776 | 1218f20f   |   303624719
+                |             |               |              |              |                                 |                                     |             |                 |                    |                 |                |              |               |                                      | [1,2)            |                         | b8505d38 | -1202692808 | 43d86e57  |  1138257495 | cd1752ee   |  -854109458
+                |             |               |              |              |                                 |                                     |             |                 |                    |                 |                |              |               |                                      |                  | [01-01-2017,12-31-2017) | 94c2297f | -1799214721 | c95cc2e4  |  -916667676 | d20772b4   |  -771263820
+        1234.56 |     1234.56 |       1234.56 |    $1,234.56 | \xdeadbeef   | Sun Dec 31 12:34:56.123456 2017 | Sun Dec 31 09:34:56.123456 2017 PST | 12-31-2017  | 12:34:56.123456 | 12:34:56.123456-05 | @ 1 year 2 mons | t              | (1.2,3.4)    | {1.2,3.4,5.6} | a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 | [1,2)            | [01-01-2017,12-31-2017) | d1652eab |  -781898069 | 64eb7c58  |  1693154392 | 1a853482   |   444937346
+(18 rows)
+
+CREATE TYPE custom_datatypes AS (
+        column_tinyint tinyint,
+        column_citext citext);
+CREATE TABLE test_hash_values_4 (
+        test_order integer,
+        columns_to_hash custom_datatypes
+);
+INSERT INTO test_hash_values_4 VALUES ( 1, '(0,)'::custom_datatypes);
+INSERT INTO test_hash_values_4 VALUES ( 2, '(127,)'::custom_datatypes);
+INSERT INTO test_hash_values_4 VALUES ( 3, '(-126,)'::custom_datatypes);
+INSERT INTO test_hash_values_4 VALUES ( 4, '(1,)'::custom_datatypes);
+INSERT INTO test_hash_values_4 VALUES ( 5, '(123,)'::custom_datatypes);
+INSERT INTO test_hash_values_4 VALUES ( 6, '(,test)'::custom_datatypes);
+INSERT INTO test_hash_values_4 VALUES ( 7, '(,TEST)'::custom_datatypes);
+SELECT  (columns_to_hash).*,
+        to_hex(sys_syn.hash_id(columns_to_hash))        AS hash_hex,    sys_syn.hash_id(columns_to_hash)        AS hash_int,
+        to_hex(sys_syn.crc32_id(columns_to_hash))       AS crc32_hex,   sys_syn.crc32_id(columns_to_hash)       AS crc32_int,
+        to_hex(sys_syn.crc32c_id(columns_to_hash))      AS crc32c_hex,  sys_syn.crc32c_id(columns_to_hash)      AS crc32c_int
+FROM    test_hash_values_4
+ORDER BY test_order;
+ column_tinyint | column_citext | hash_hex |  hash_int  | crc32_hex |  crc32_int  | crc32c_hex | crc32c_int  
+----------------+---------------+----------+------------+-----------+-------------+------------+-------------
+ 0              |               | 0        |          0 | 6522df69  |  1696784233 | 8c28b28a   | -1943489910
+ 127            |               | 1b89ee96 |  462024342 | 10525c55  |   273833045 | a73c144b   | -1489234869
+ -126           |               | 196ff4b9 |  426767545 | 16115b5d  |   370236253 | f10b1748   |  -250931384
+ 1              |               | 61cdd7e9 | 1640880105 | a988dff7  | -1450647561 | c514cfad   |  -988491859
+ 123            |               | 1c78699a |  477653402 | 941852af  | -1810345297 | 86219626   | -2044619226
+                | test          | 6995a621 | 1771415073 | d87f7e0c  |  -662733300 | 86a072c0   | -2036305216
+                | TEST          | 6995a621 | 1771415073 | d87f7e0c  |  -662733300 | 86a072c0   | -2036305216
+(7 rows)
+
+ROLLBACK;
